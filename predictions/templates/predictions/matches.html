@@ -1,0 +1,210 @@
+{% extends "predictions/base.html" %}
+
+{% block content %}
+<style>
+    .matches-details-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 900px) {
+        .matches-details-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<section class="page-heading">
+    <p class="eyebrow">Fixtures</p>
+    <h1>Matches</h1>
+    <p>
+        View fixtures, check match status and submit your prediction before kickoff.
+    </p>
+</section>
+
+<section class="matches-summary-grid">
+    <article class="matches-summary-card">
+        <span class="matches-summary-number">{{ total_matches }}</span>
+        <span class="matches-summary-label">Total matches</span>
+    </article>
+
+    <article class="matches-summary-card">
+        <span class="matches-summary-number">{{ scheduled_matches }}</span>
+        <span class="matches-summary-label">Scheduled</span>
+    </article>
+
+    <article class="matches-summary-card">
+        <span class="matches-summary-number">{{ finished_matches }}</span>
+        <span class="matches-summary-label">Finished</span>
+    </article>
+</section>
+
+{% if user_memberships %}
+    <section class="matches-group-card">
+        <h2>Your group access</h2>
+
+        <div class="matches-group-pill-list">
+            {% for membership in user_memberships %}
+                <span class="matches-group-pill">
+                    {{ membership.group.name }} · {{ membership.get_role_display }}
+                </span>
+            {% endfor %}
+        </div>
+    </section>
+{% else %}
+    <section class="matches-warning-card">
+        <h2>No group membership found</h2>
+        <p>
+            Your account is not currently linked to a competition group.
+            Ask the organiser to check your group membership in the admin panel.
+        </p>
+    </section>
+{% endif %}
+
+{% if matches %}
+    <section class="matches-list">
+        {% for match in matches %}
+            <article class="matches-card">
+                <div class="matches-main">
+                    <div>
+                        <p class="matches-stage">{{ match.get_stage_display }}</p>
+
+                        <h2>
+                            {% if match.home_team_flag %}
+                                <span class="team-flag">{{ match.home_team_flag }}</span>
+                            {% endif %}
+
+                            {{ match.home_team }}
+
+                            <span class="versus">vs</span>
+
+                            {% if match.away_team_flag %}
+                                <span class="team-flag">{{ match.away_team_flag }}</span>
+                            {% endif %}
+
+                            {{ match.away_team }}
+                        </h2>
+
+                        <p class="matches-kickoff">
+                            Kickoff: {{ match.kickoff_time|date:"D, d M Y H:i" }}
+                        </p>
+                    </div>
+
+                    <div class="matches-status-block">
+                        <span class="matches-status-pill matches-status-{{ match.status }}">
+                            {{ match.get_status_display }}
+                        </span>
+
+                        {% if match.is_voting_open %}
+                            <span class="matches-voting-pill matches-voting-open">Voting open</span>
+                        {% else %}
+                            <span class="matches-voting-pill matches-voting-locked">Voting locked</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="matches-details-grid">
+                    <div class="matches-detail-box">
+                        <span class="matches-detail-label">Score</span>
+                        <span class="matches-detail-value">{{ match.score_display }}</span>
+                    </div>
+
+                    <div class="matches-detail-box">
+                        <span class="matches-detail-label">Result</span>
+                        <span class="matches-detail-value">
+                            {% if match.has_result %}
+                                {{ match.get_result_display }}
+                            {% else %}
+                                Awaiting result
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                {% if match.is_voting_open and primary_membership %}
+                    <div class="prediction-panel">
+                        <h3>Your prediction</h3>
+
+                        {% if match.user_prediction %}
+                            <p class="prediction-help">
+                                Current prediction:
+                                <strong>{{ match.user_prediction.get_prediction_display }}</strong>.
+                                You can update it until kickoff.
+                            </p>
+                        {% else %}
+                            <p class="prediction-help">
+                                Choose what you think the main match outcome will be.
+                                You can change your prediction until kickoff.
+                            </p>
+                        {% endif %}
+
+                        <form class="prediction-form" method="post" action="{% url 'submit_prediction' match.id %}">
+                            {% csrf_token %}
+
+                            <button
+                                class="prediction-option {% if match.user_prediction.prediction == 'home' %}selected{% endif %}"
+                                type="submit"
+                                name="prediction"
+                                value="home"
+                            >
+                                {{ match.home_team }} win
+                            </button>
+
+                            <button
+                                class="prediction-option {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
+                                type="submit"
+                                name="prediction"
+                                value="draw"
+                            >
+                                Draw
+                            </button>
+
+                            <button
+                                class="prediction-option {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
+                                type="submit"
+                                name="prediction"
+                                value="away"
+                            >
+                                {{ match.away_team }} win
+                            </button>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="prediction-locked">
+                        {% if match.user_prediction %}
+                            <p>
+                                Your prediction:
+                                <strong>{{ match.user_prediction.get_prediction_display }}</strong>
+                            </p>
+
+                            {% if match.has_result %}
+                                <p>
+                                    Points awarded:
+                                    <strong>{{ match.user_prediction.points_awarded }}</strong>
+                                </p>
+                            {% endif %}
+                        {% else %}
+                            <p>No prediction submitted for this match.</p>
+                        {% endif %}
+
+                        <p>Voting is locked for this match.</p>
+                    </div>
+                {% endif %}
+            </article>
+        {% endfor %}
+    </section>
+{% else %}
+    <section class="matches-empty-card">
+        <h2>No matches have been added yet</h2>
+        <p>
+            Add your first match through the Django admin panel.
+            Later, this app will support importing fixtures from a free external data source.
+        </p>
+
+        {% if user.is_staff %}
+            <a class="button primary" href="/admin/predictions/match/add/">
+                Add match in admin
+            </a>
+        {% endif %}
+    </section>
+{% endif %}
+{% endblock %}

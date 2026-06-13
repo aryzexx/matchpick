@@ -1,0 +1,47 @@
+{% extends "predictions/base.html" %}
+
+{% block content %}
+<section class="auth-card">
+    <p class="eyebrow">Welcome back</p>
+    <h1>Log in</h1>
+
+    <p class="auth-intro">
+        Log in using your MatchPick username and password.
+    </p>
+
+    <form method="post" class="auth-form">
+        {% csrf_token %}
+
+        <input type="hidden" name="next" value="{{ next }}">
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <div class="form-field">
+            <label for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+            {% for error in form.username.errors %}
+                <p class="field-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="form-field">
+            <label for="{{ form.password.id_for_label }}">Password</label>
+            {{ form.password }}
+            {% for error in form.password.errors %}
+                <p class="field-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <button class="button primary full-width" type="submit">Log in</button>
+    </form>
+
+    <p class="auth-switch">
+        Need an account?
+        <a href="{% url 'register' %}">Create one using your invite code</a>
+    </p>
+</section>
+{% endblock %}

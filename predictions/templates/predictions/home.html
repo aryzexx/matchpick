@@ -1,0 +1,75 @@
+{% extends "predictions/base.html" %}
+
+{% block content %}
+<section class="hero-card">
+    <div class="hero-text">
+        <p class="eyebrow">Private prediction competition</p>
+
+        <h1>Predict match outcomes with family and friends.</h1>
+
+        <p class="hero-description">
+            MatchPick is a private football prediction app where users join an invite-only group,
+            predict match outcomes before kickoff, and compete on a leaderboard.
+        </p>
+
+        <div class="hero-actions">
+            {% if user.is_authenticated %}
+                <a class="button primary" href="{% url 'matches' %}">View matches</a>
+                <a class="button secondary" href="{% url 'leaderboard' %}">View leaderboard</a>
+            {% else %}
+                <a class="button primary" href="{% url 'register' %}">Create account</a>
+                <a class="button secondary" href="{% url 'login' %}">Log in</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="hero-panel">
+        <div class="mini-score-card">
+            <span class="mini-label">Example match</span>
+            <strong>Argentina vs Spain</strong>
+            <p>Pick: home win, draw, or away win</p>
+        </div>
+
+        <div class="mini-score-card">
+            <span class="mini-label">Scoring</span>
+            <strong>Correct prediction = 3 points</strong>
+            <p>Leaderboard updates after results are entered.</p>
+        </div>
+    </div>
+</section>
+
+<section class="info-grid">
+    <article class="info-card">
+        <span class="step-badge">1</span>
+        <h2>Join a group</h2>
+        <p>
+            Users join a private competition using an invite code shared by the organiser.
+        </p>
+    </article>
+
+    <article class="info-card">
+        <span class="step-badge">2</span>
+        <h2>Make predictions</h2>
+        <p>
+            Before kickoff, users choose home win, draw, or away win.
+        </p>
+    </article>
+
+    <article class="info-card">
+        <span class="step-badge">3</span>
+        <h2>Track rankings</h2>
+        <p>
+            Correct predictions earn points and the leaderboard ranks group members.
+        </p>
+    </article>
+</section>
+
+<section class="privacy-card">
+    <h2>Privacy-focused by design</h2>
+    <p>
+        Version 1 only needs a username, password, group membership and match predictions.
+        It does not require email addresses, phone numbers, full legal names, dates of birth,
+        locations or profile photos.
+    </p>
+</section>
+{% endblock %}

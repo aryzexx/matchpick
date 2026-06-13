@@ -1,0 +1,132 @@
+{% extends "predictions/base.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <p class="eyebrow">Competition standings</p>
+    <h1>Leaderboard</h1>
+    <p>
+        View group rankings based on saved predictions and final match results.
+    </p>
+</section>
+
+{% if not primary_membership %}
+    <section class="leaderboard-warning-card">
+        <h2>No group membership found</h2>
+        <p>
+            Your account is not currently linked to a competition group.
+            Ask the organiser to check your group membership in the admin panel.
+        </p>
+    </section>
+{% else %}
+    <section class="leaderboard-group-card">
+        <h2>Your competition group</h2>
+        <span class="leaderboard-group-pill">
+            {{ primary_membership.group.name }} · {{ primary_membership.get_role_display }}
+        </span>
+
+        <p class="leaderboard-note">
+            Rankings are calculated from final points. A correct prediction is worth 3 points.
+            Incorrect and missed predictions are worth 0 points.
+        </p>
+    </section>
+
+    <section class="leaderboard-summary-grid">
+        <article class="leaderboard-summary-card">
+            <span class="leaderboard-summary-number">{{ total_members }}</span>
+            <span class="leaderboard-summary-label">Members</span>
+        </article>
+
+        <article class="leaderboard-summary-card">
+            <span class="leaderboard-summary-number">{{ finished_matches_count }}</span>
+            <span class="leaderboard-summary-label">Finished matches</span>
+        </article>
+
+        <article class="leaderboard-summary-card">
+            <span class="leaderboard-summary-number">{{ total_predictions }}</span>
+            <span class="leaderboard-summary-label">Predictions made</span>
+        </article>
+
+        <article class="leaderboard-summary-card">
+            <span class="leaderboard-summary-number">{{ highest_points }}</span>
+            <span class="leaderboard-summary-label">Highest points</span>
+        </article>
+    </section>
+
+    {% if leaderboard_rows %}
+        <section class="leaderboard-table-card">
+            <h2>Group leaderboard</h2>
+
+            <div class="leaderboard-table-wrapper">
+                <table class="real-leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Points</th>
+                            <th>Predictions</th>
+                            <th>Correct</th>
+                            <th>Missed</th>
+                            <th>Accuracy</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in leaderboard_rows %}
+                            <tr class="{% if row.is_current_user %}current-user-row{% endif %}">
+                                <td>
+                                    <span class="rank-badge {% if row.rank == 1 %}rank-one{% endif %}">
+                                        {{ row.rank }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="player-name">
+                                        {{ row.username }}
+
+                                        {% if row.is_current_user %}
+                                            <span class="you-pill">You</span>
+                                        {% endif %}
+                                    </span>
+
+                                    <span class="player-meta">{{ row.role }}</span>
+                                </td>
+
+                                <td>
+                                    <span class="points-value">{{ row.total_points }}</span>
+                                </td>
+
+                                <td>
+                                    {{ row.predictions_made }}
+                                    <span class="player-meta">{{ row.scored_predictions }} scored</span>
+                                </td>
+
+                                <td>{{ row.correct_predictions }}</td>
+
+                                <td>
+                                    <span class="missed-value">{{ row.missed_finished_matches }}</span>
+                                </td>
+
+                                <td>
+                                    <span class="accuracy-pill">{{ row.accuracy }}%</span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="leaderboard-note">
+                Accuracy is calculated using predictions for matches that have a final result.
+                Scheduled matches are not counted as scored predictions yet.
+            </p>
+        </section>
+    {% else %}
+        <section class="leaderboard-empty-card">
+            <h2>No leaderboard data yet</h2>
+            <p>
+                Once group members submit predictions, they will appear here.
+            </p>
+        </section>
+    {% endif %}
+{% endif %}
+{% endblock %}

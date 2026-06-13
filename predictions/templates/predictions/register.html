@@ -1,0 +1,71 @@
+{% extends "predictions/base.html" %}
+
+{% block content %}
+<section class="auth-card">
+    <p class="eyebrow">Join a private competition</p>
+    <h1>Create account</h1>
+
+    <p class="auth-intro">
+        Create a MatchPick account using only a username, password and invite code.
+        No email address is required.
+    </p>
+
+    <form method="post" class="auth-form">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <div class="form-field">
+            <label for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+            {% for error in form.username.errors %}
+                <p class="field-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="form-field">
+            <label for="{{ form.password1.id_for_label }}">Password</label>
+            {{ form.password1 }}
+            {% if form.password1.help_text %}
+                <p class="help-text">{{ form.password1.help_text }}</p>
+            {% endif %}
+            {% for error in form.password1.errors %}
+                <p class="field-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="form-field">
+            <label for="{{ form.password2.id_for_label }}">Confirm password</label>
+            {{ form.password2 }}
+            {% if form.password2.help_text %}
+                <p class="help-text">{{ form.password2.help_text }}</p>
+            {% endif %}
+            {% for error in form.password2.errors %}
+                <p class="field-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="form-field">
+            <label for="{{ form.invite_code.id_for_label }}">Invite code</label>
+            {{ form.invite_code }}
+            {% if form.invite_code.help_text %}
+                <p class="help-text">{{ form.invite_code.help_text }}</p>
+            {% endif %}
+            {% for error in form.invite_code.errors %}
+                <p class="field-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <button class="button primary full-width" type="submit">Create account</button>
+    </form>
+
+    <p class="auth-switch">
+        Already have an account?
+        <a href="{% url 'login' %}">Log in</a>
+    </p>
+</section>
+{% endblock %}

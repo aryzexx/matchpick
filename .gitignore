@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Django/local database
+db.sqlite3
+*.sqlite3
+
+# Environment variables/secrets
+.env
+.env.local
+
+# Static build output
+staticfiles/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Evidence screenshots can be kept locally unless you choose to include them
+# evidence/
