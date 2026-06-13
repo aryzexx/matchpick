@@ -30,4 +30,4 @@ Thumbs.db
 *.log
 
 # Evidence screenshots can be kept locally unless you choose to include them
-# evidence/
+evidence/
