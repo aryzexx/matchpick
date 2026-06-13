@@ -2,29 +2,32 @@
 
 {% block content %}
 <section class="page-heading">
-    <p class="eyebrow">Global standings</p>
-    <h1>Global Leaderboard</h1>
+    <p class="eyebrow">League standings</p>
+    <h1>{{ group.name }}</h1>
     <p>
-        View rankings across everyone using MatchPick. This page is only visible to logged-in users.
+        This leaderboard only includes members of this league.
     </p>
 </section>
 
 <section class="leaderboard-group-card">
-    <h2>All players</h2>
+    <h2>{{ group.name }}</h2>
     <span class="leaderboard-group-pill">
-        Global
+        {{ current_membership.get_role_display }}
     </span>
 
     <p class="leaderboard-note">
-        Your one prediction per match counts globally and in every league you belong to.
-        A correct prediction is worth 3 points. Incorrect and missed predictions are worth 0 points.
+        Your predictions are shared across all leagues, but this table only ranks members of {{ group.name }}.
     </p>
+
+    <a class="button secondary" href="{% url 'leagues' %}">
+        Back to My Leagues
+    </a>
 </section>
 
 <section class="leaderboard-summary-grid">
     <article class="leaderboard-summary-card">
         <span class="leaderboard-summary-number">{{ total_members }}</span>
-        <span class="leaderboard-summary-label">Players</span>
+        <span class="leaderboard-summary-label">Members</span>
     </article>
 
     <article class="leaderboard-summary-card">
@@ -45,7 +48,7 @@
 
 {% if leaderboard_rows %}
     <section class="leaderboard-table-card">
-        <h2>Global leaderboard</h2>
+        <h2>League leaderboard</h2>
 
         <div class="leaderboard-table-wrapper">
             <table class="real-leaderboard-table">
@@ -115,7 +118,7 @@
     <section class="leaderboard-empty-card">
         <h2>No leaderboard data yet</h2>
         <p>
-            Once players join leagues and submit predictions, they will appear here.
+            Once members submit predictions, they will appear here.
         </p>
     </section>
 {% endif %}

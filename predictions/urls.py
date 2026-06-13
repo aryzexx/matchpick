@@ -10,5 +10,7 @@ urlpatterns = [
     path("logout/", views.user_logout, name="logout"),
     path("matches/", views.matches, name="matches"),
     path("matches/<int:match_id>/predict/", views.submit_prediction, name="submit_prediction"),
-    path("leaderboard/", views.leaderboard, name="leaderboard"),
+    path("leagues/", views.leagues, name="leagues"),
+    path("leagues/<int:group_id>/", views.league_detail, name="league_detail"),
+    path("leaderboard/", views.global_leaderboard, name="leaderboard"),
 ]

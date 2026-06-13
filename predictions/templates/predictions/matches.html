@@ -6,6 +6,33 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
+    .user-groups-card {
+        background: white;
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .user-groups-list {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+
+    .user-group-pill {
+        display: inline-block;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-weight: 800;
+        font-size: 14px;
+        text-decoration: none;
+    }
+
     .prediction-inline-message {
         display: none;
         margin-top: 12px;
@@ -34,6 +61,12 @@
         cursor: wait;
     }
 
+    .voting-reason {
+        margin-top: 8px;
+        font-weight: 800;
+        color: #6b7280;
+    }
+
     @media (max-width: 900px) {
         .matches-details-grid {
             grid-template-columns: 1fr;
@@ -45,7 +78,7 @@
     <p class="eyebrow">Fixtures</p>
     <h1>Matches</h1>
     <p>
-        View fixtures, check match status and submit your prediction before kickoff.
+        View fixtures and submit one prediction per match. Your prediction counts in every league you belong to.
     </p>
 </section>
 
@@ -67,24 +100,32 @@
 </section>
 
 {% if user_memberships %}
-    <section class="matches-group-card">
-        <h2>Your group access</h2>
+    <section class="user-groups-card">
+        <h2>Your leagues</h2>
 
-        <div class="matches-group-pill-list">
+        <p class="leaderboard-note">
+            You make one prediction per match. The same prediction counts in all of your leagues.
+        </p>
+
+        <div class="user-groups-list">
             {% for membership in user_memberships %}
-                <span class="matches-group-pill">
-                    {{ membership.group.name }} · {{ membership.get_role_display }}
-                </span>
+                <a class="user-group-pill" href="{% url 'league_detail' membership.group.id %}">
+                    {{ membership.group.name }}
+                </a>
             {% endfor %}
         </div>
     </section>
 {% else %}
     <section class="matches-warning-card">
-        <h2>No group membership found</h2>
+        <h2>No league membership found</h2>
         <p>
-            Your account is not currently linked to a competition group.
-            Ask the organiser to check your group membership in the admin panel.
+            Your account is not currently linked to a league.
+            Go to the Leagues page and join one using a league code.
         </p>
+
+        <a class="button primary" href="{% url 'leagues' %}">
+            Join a league
+        </a>
     </section>
 {% endif %}
 
@@ -122,7 +163,7 @@
                             {{ match.get_status_display }}
                         </span>
 
-                        {% if match.is_voting_open %}
+                        {% if match.voting_is_open %}
                             <span class="matches-voting-pill matches-voting-open">Voting open</span>
                         {% else %}
                             <span class="matches-voting-pill matches-voting-locked">Voting locked</span>
@@ -148,7 +189,7 @@
                     </div>
                 </div>
 
-                {% if match.is_voting_open and primary_membership %}
+                {% if match.voting_is_open and user_memberships %}
                     <div class="prediction-panel">
                         <h3>Your prediction</h3>
 
@@ -158,13 +199,13 @@
                                 <strong class="current-prediction-text">
                                     {{ match.user_prediction.get_prediction_display }}
                                 </strong>.
-                                You can update it until kickoff.
+                                This counts in all of your leagues.
                             {% else %}
                                 Current prediction:
                                 <strong class="current-prediction-text">
                                     Not selected yet
                                 </strong>.
-                                You can change your prediction until kickoff.
+                                Choose once and it will count in all of your leagues.
                             {% endif %}
                         </p>
 
@@ -219,7 +260,7 @@
                             <p>No prediction submitted for this match.</p>
                         {% endif %}
 
-                        <p>Voting is locked for this match.</p>
+                        <p class="voting-reason">{{ match.voting_message }}</p>
                     </div>
                 {% endif %}
             </article>
@@ -230,7 +271,6 @@
         <h2>No matches have been added yet</h2>
         <p>
             Add your first match through the Django admin panel.
-            Later, this app will support importing fixtures from a free external data source.
         </p>
 
         {% if user.is_staff %}

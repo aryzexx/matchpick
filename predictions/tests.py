@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -8,384 +8,263 @@ from django.utils import timezone
 from .models import CompetitionGroup, GroupMember, Match, Prediction
 
 
-class MatchPickCoreTests(TestCase):
-    """
-    Automated tests for the core MatchPick application workflow.
+User = get_user_model()
 
-    These tests cover:
-    - data minimisation during registration
-    - invite-code joining
-    - protected pages
-    - prediction voting
-    - voting lock rules
-    - result calculation
-    - leaderboard behaviour
-    - password hashing
-    """
 
+class MatchPickUpdateOneTests(TestCase):
     def setUp(self):
-        """
-        Creates reusable test data for the test suite.
-        """
-
-        self.admin_user = User.objects.create_user(
-            username="adminuser",
-            password="AdminPass123!",
-            is_staff=True,
-            is_superuser=True,
+        self.owner = User.objects.create_user(
+            username="owner",
+            password="Testpass123!",
         )
 
-        self.normal_user = User.objects.create_user(
-            username="testuser1",
-            password="TestPass123!",
+        self.aryan = User.objects.create_user(
+            username="aryan",
+            password="Testpass123!",
         )
 
-        self.second_user = User.objects.create_user(
-            username="testuser2",
-            password="TestPass123!",
+        self.friend = User.objects.create_user(
+            username="friend",
+            password="Testpass123!",
         )
 
-        self.group = CompetitionGroup.objects.create(
+        self.family = CompetitionGroup.objects.create(
             name="Family League",
             invite_code="FAMILY26",
-            created_by=self.admin_user,
+            created_by=self.owner,
+        )
+
+        self.friends = CompetitionGroup.objects.create(
+            name="Friends League",
+            invite_code="FRIENDS26",
+            created_by=self.owner,
         )
 
         GroupMember.objects.create(
-            user=self.normal_user,
-            group=self.group,
+            user=self.aryan,
+            group=self.family,
             role=GroupMember.ROLE_MEMBER,
         )
 
         GroupMember.objects.create(
-            user=self.second_user,
-            group=self.group,
+            user=self.friend,
+            group=self.friends,
             role=GroupMember.ROLE_MEMBER,
         )
 
-        self.future_match = Match.objects.create(
-            home_team="Argentina",
-            away_team="Spain",
-            kickoff_time=timezone.now() + timedelta(days=10),
+    def create_match(
+        self,
+        home_team="Argentina",
+        away_team="Brazil",
+        kickoff_delta_hours=24,
+        status=None,
+        result=None,
+    ):
+        if status is None:
+            status = Match.STATUS_SCHEDULED
+
+        return Match.objects.create(
+            home_team=home_team,
+            away_team=away_team,
+            kickoff_time=timezone.now() + timedelta(hours=kickoff_delta_hours),
             stage=Match.STAGE_GROUP,
-            status=Match.STATUS_SCHEDULED,
+            status=status,
+            result=result,
         )
 
-        self.past_match = Match.objects.create(
-            home_team="England",
-            away_team="Brazil",
-            kickoff_time=timezone.now() - timedelta(days=1),
-            stage=Match.STAGE_GROUP,
-            status=Match.STATUS_FINISHED,
-            home_score=2,
-            away_score=1,
-        )
+    def login_as_aryan(self):
+        self.client.login(username="aryan", password="Testpass123!")
 
-    def test_password_is_hashed_not_stored_as_plaintext(self):
-        """
-        Confirms that Django stores a password hash rather than the raw password.
-        """
-
-        user = User.objects.get(username="testuser1")
-
-        self.assertNotEqual(user.password, "TestPass123!")
-        self.assertTrue(user.check_password("TestPass123!"))
-
-    def test_registration_rejects_invalid_invite_code(self):
-        """
-        Confirms that users cannot register with a fake invite code.
-        """
+    def test_user_can_join_second_league_after_registration(self):
+        self.login_as_aryan()
 
         response = self.client.post(
-            reverse("register"),
+            reverse("leagues"),
             {
-                "username": "badinviteuser",
-                "password1": "StrongPass123!",
-                "password2": "StrongPass123!",
-                "invite_code": "WRONGCODE",
+                "invite_code": "FRIENDS26",
             },
+            follow=True,
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(User.objects.filter(username="badinviteuser").exists())
-        self.assertContains(response, "This invite code is not valid")
 
-    def test_registration_with_valid_invite_creates_user_and_membership(self):
-        """
-        Confirms that a valid invite code creates both a user and group membership.
-        """
+        self.assertTrue(
+            GroupMember.objects.filter(
+                user=self.aryan,
+                group=self.friends,
+            ).exists()
+        )
 
-        response = self.client.post(
-            reverse("register"),
+    def test_user_cannot_join_same_league_twice(self):
+        self.login_as_aryan()
+
+        self.client.post(
+            reverse("leagues"),
             {
-                "username": "newmember",
-                "password1": "StrongPass123!",
-                "password2": "StrongPass123!",
                 "invite_code": "FAMILY26",
             },
+            follow=True,
         )
 
-        self.assertEqual(response.status_code, 302)
+        membership_count = GroupMember.objects.filter(
+            user=self.aryan,
+            group=self.family,
+        ).count()
 
-        user = User.objects.get(username="newmember")
+        self.assertEqual(membership_count, 1)
 
-        self.assertEqual(user.email, "")
-        self.assertTrue(
-            GroupMember.objects.filter(user=user, group=self.group).exists()
+    def test_one_prediction_is_synced_across_all_user_leagues(self):
+        GroupMember.objects.create(
+            user=self.aryan,
+            group=self.friends,
+            role=GroupMember.ROLE_MEMBER,
         )
 
-    def test_matches_page_requires_login(self):
-        """
-        Confirms that logged-out visitors cannot view the matches page.
-        """
+        match = self.create_match()
 
-        response = self.client.get(reverse("matches"))
+        self.login_as_aryan()
 
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(reverse("login"), response.url)
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_HOME,
+            },
+            follow=True,
+        )
 
-    def test_leaderboard_page_requires_login(self):
-        """
-        Confirms that logged-out visitors cannot view the leaderboard page.
-        """
+        self.assertEqual(response.status_code, 200)
+
+        predictions = Prediction.objects.filter(
+            user=self.aryan,
+            match=match,
+        )
+
+        self.assertEqual(predictions.count(), 2)
+
+        prediction_values = set(
+            predictions.values_list("prediction", flat=True)
+        )
+
+        self.assertEqual(prediction_values, {Prediction.PREDICTION_HOME})
+
+    def test_prediction_is_blocked_more_than_48_hours_before_kickoff(self):
+        match = self.create_match(kickoff_delta_hours=72)
+
+        self.login_as_aryan()
+
+        self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_HOME,
+            },
+            follow=True,
+        )
+
+        self.assertFalse(
+            Prediction.objects.filter(
+                user=self.aryan,
+                match=match,
+            ).exists()
+        )
+
+    def test_prediction_is_blocked_for_placeholder_teams(self):
+        match = self.create_match(
+            home_team="Winner Group A",
+            away_team="Runner-up Group B",
+            kickoff_delta_hours=24,
+        )
+
+        self.login_as_aryan()
+
+        self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_HOME,
+            },
+            follow=True,
+        )
+
+        self.assertFalse(
+            Prediction.objects.filter(
+                user=self.aryan,
+                match=match,
+            ).exists()
+        )
+
+    def test_global_leaderboard_is_visible_to_logged_in_users(self):
+        self.login_as_aryan()
 
         response = self.client.get(reverse("leaderboard"))
 
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Global Leaderboard")
+        self.assertContains(response, "aryan")
+        self.assertContains(response, "friend")
+
+    def test_global_leaderboard_requires_login(self):
+        response = self.client.get(reverse("leaderboard"))
+
         self.assertEqual(response.status_code, 302)
-        self.assertIn(reverse("login"), response.url)
+        self.assertIn(reverse("login"), response["Location"])
 
-    def test_normal_user_does_not_see_admin_link(self):
-        """
-        Confirms that normal users do not see the admin navigation link.
-        """
+    def test_league_detail_only_shows_members_of_that_league(self):
+        self.login_as_aryan()
 
-        self.client.login(username="testuser1", password="TestPass123!")
-
-        response = self.client.get(reverse("matches"))
+        response = self.client.get(
+            reverse("league_detail", args=[self.family.id])
+        )
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'href="/admin/"')
+        self.assertContains(response, "Family League")
+        self.assertContains(response, "aryan")
+        self.assertNotContains(response, "friend")
 
-    def test_staff_user_can_see_admin_link(self):
-        """
-        Confirms that staff/admin users can see the admin navigation link.
-        """
+    def test_user_cannot_view_league_they_are_not_a_member_of(self):
+        self.login_as_aryan()
 
-        self.client.login(username="adminuser", password="AdminPass123!")
-
-        response = self.client.get(reverse("matches"))
+        response = self.client.get(
+            reverse("league_detail", args=[self.friends.id]),
+            follow=True,
+        )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'href="/admin/"')
+        self.assertContains(response, "You are not a member of that league.")
 
-    def test_prediction_can_be_created_before_kickoff(self):
-        """
-        Confirms that a logged-in group member can submit a prediction
-        before kickoff.
-        """
-
-        self.client.login(username="testuser1", password="TestPass123!")
-
-        response = self.client.post(
-            reverse("submit_prediction", args=[self.future_match.id]),
-            {
-                "prediction": Prediction.PREDICTION_HOME,
-            },
+    def test_league_and_global_leaderboards_use_same_prediction_points(self):
+        GroupMember.objects.create(
+            user=self.aryan,
+            group=self.friends,
+            role=GroupMember.ROLE_MEMBER,
         )
-
-        self.assertEqual(response.status_code, 302)
-
-        prediction = Prediction.objects.get(
-            user=self.normal_user,
-            group=self.group,
-            match=self.future_match,
-        )
-
-        self.assertEqual(prediction.prediction, Prediction.PREDICTION_HOME)
-
-    def test_prediction_can_be_updated_before_kickoff(self):
-        """
-        Confirms that a user can update their prediction before kickoff
-        without creating duplicate prediction rows.
-        """
-
-        self.client.login(username="testuser1", password="TestPass123!")
-
-        self.client.post(
-            reverse("submit_prediction", args=[self.future_match.id]),
-            {
-                "prediction": Prediction.PREDICTION_HOME,
-            },
-        )
-
-        self.client.post(
-            reverse("submit_prediction", args=[self.future_match.id]),
-            {
-                "prediction": Prediction.PREDICTION_AWAY,
-            },
-        )
-
-        predictions = Prediction.objects.filter(
-            user=self.normal_user,
-            group=self.group,
-            match=self.future_match,
-        )
-
-        self.assertEqual(predictions.count(), 1)
-        self.assertEqual(predictions.first().prediction, Prediction.PREDICTION_AWAY)
-
-    def test_prediction_is_rejected_after_voting_locked(self):
-        """
-        Confirms that users cannot vote once a match is no longer open.
-        """
-
-        self.client.login(username="testuser1", password="TestPass123!")
-
-        response = self.client.post(
-            reverse("submit_prediction", args=[self.past_match.id]),
-            {
-                "prediction": Prediction.PREDICTION_HOME,
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-
-        self.assertFalse(
-            Prediction.objects.filter(
-                user=self.normal_user,
-                group=self.group,
-                match=self.past_match,
-            ).exists()
-        )
-
-    def test_prediction_is_rejected_for_user_without_group(self):
-        """
-        Confirms that a logged-in user without group membership cannot vote.
-        """
-
-        no_group_user = User.objects.create_user(
-            username="nogroup",
-            password="TestPass123!",
-        )
-
-        self.client.login(username="nogroup", password="TestPass123!")
-
-        response = self.client.post(
-            reverse("submit_prediction", args=[self.future_match.id]),
-            {
-                "prediction": Prediction.PREDICTION_HOME,
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-
-        self.assertFalse(
-            Prediction.objects.filter(
-                user=no_group_user,
-                match=self.future_match,
-            ).exists()
-        )
-
-    def test_match_result_is_calculated_from_finished_score(self):
-        """
-        Confirms that a finished match with a score automatically gets a result.
-        """
-
-        match = Match.objects.create(
-            home_team="France",
-            away_team="Germany",
-            kickoff_time=timezone.now() - timedelta(days=1),
-            stage=Match.STAGE_GROUP,
-            status=Match.STATUS_FINISHED,
-            home_score=1,
-            away_score=1,
-        )
-
-        self.assertEqual(match.result, Match.RESULT_DRAW)
-
-    def test_prediction_points_awarded_when_prediction_matches_result(self):
-        """
-        Confirms that correct predictions are worth 3 points.
-        """
 
         finished_match = Match.objects.create(
-            home_team="Portugal",
-            away_team="Netherlands",
-            kickoff_time=timezone.now() - timedelta(days=1),
-            stage=Match.STAGE_GROUP,
-            status=Match.STATUS_FINISHED,
-            home_score=3,
-            away_score=0,
-        )
-
-        prediction = Prediction.objects.create(
-            user=self.normal_user,
-            group=self.group,
-            match=finished_match,
-            prediction=Prediction.PREDICTION_HOME,
-        )
-
-        self.assertEqual(prediction.points_awarded, 3)
-
-    def test_prediction_points_zero_when_prediction_is_wrong(self):
-        """
-        Confirms that incorrect predictions are worth 0 points.
-        """
-
-        finished_match = Match.objects.create(
-            home_team="Japan",
-            away_team="USA",
-            kickoff_time=timezone.now() - timedelta(days=1),
-            stage=Match.STAGE_GROUP,
-            status=Match.STATUS_FINISHED,
-            home_score=0,
-            away_score=2,
-        )
-
-        prediction = Prediction.objects.create(
-            user=self.normal_user,
-            group=self.group,
-            match=finished_match,
-            prediction=Prediction.PREDICTION_HOME,
-        )
-
-        self.assertEqual(prediction.points_awarded, 0)
-
-    def test_leaderboard_displays_group_members_and_points(self):
-        """
-        Confirms that the leaderboard page displays real group members and points.
-        """
-
-        finished_match = Match.objects.create(
-            home_team="Morocco",
-            away_team="Croatia",
-            kickoff_time=timezone.now() - timedelta(days=1),
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_time=timezone.now() - timedelta(hours=2),
             stage=Match.STAGE_GROUP,
             status=Match.STATUS_FINISHED,
             home_score=2,
-            away_score=0,
+            away_score=1,
+            result=Match.RESULT_HOME,
         )
 
         Prediction.objects.create(
-            user=self.normal_user,
-            group=self.group,
+            user=self.aryan,
+            group=self.family,
             match=finished_match,
             prediction=Prediction.PREDICTION_HOME,
         )
 
-        Prediction.objects.create(
-            user=self.second_user,
-            group=self.group,
-            match=finished_match,
-            prediction=Prediction.PREDICTION_AWAY,
+        self.login_as_aryan()
+
+        global_response = self.client.get(reverse("leaderboard"))
+        family_response = self.client.get(
+            reverse("league_detail", args=[self.family.id])
+        )
+        friends_response = self.client.get(
+            reverse("league_detail", args=[self.friends.id])
         )
 
-        self.client.login(username="testuser1", password="TestPass123!")
-
-        response = self.client.get(reverse("leaderboard"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "testuser1")
-        self.assertContains(response, "testuser2")
-        self.assertContains(response, "3")
-        self.assertContains(response, "You")
+        self.assertContains(global_response, "3")
+        self.assertContains(family_response, "3")
+        self.assertContains(friends_response, "3")

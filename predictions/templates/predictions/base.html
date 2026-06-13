@@ -5,43 +5,62 @@
 <head>
     <meta charset="UTF-8">
     <title>MatchPick</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="{% static 'predictions/styles.css' %}">
 </head>
+
 <body>
     <header class="site-header">
         <nav class="navbar">
             <a class="brand" href="{% url 'home' %}">
-                <span class="brand-mark">MP</span>
-                <span>MatchPick</span>
+                MatchPick
             </a>
 
             <div class="nav-links">
-                <a href="{% url 'home' %}">Home</a>
-                <a href="{% url 'matches' %}">Matches</a>
-                <a href="{% url 'leaderboard' %}">Leaderboard</a>
-
                 {% if user.is_authenticated %}
-                    <span class="nav-user">Signed in as {{ user.username }}</span>
+                    <a href="{% url 'matches' %}" class="{% if request.resolver_match.url_name == 'matches' %}active{% endif %}">
+                        Matches
+                    </a>
+
+                    <a href="{% url 'leagues' %}" class="{% if request.resolver_match.url_name == 'leagues' or request.resolver_match.url_name == 'league_detail' %}active{% endif %}">
+                        Leagues
+                    </a>
+
+                    <a href="{% url 'leaderboard' %}" class="{% if request.resolver_match.url_name == 'leaderboard' %}active{% endif %}">
+                        Global Leaderboard
+                    </a>
+
+                    {% if user.is_staff %}
+                        <a href="/admin/">
+                            Admin
+                        </a>
+                    {% endif %}
 
                     <form class="logout-form" method="post" action="{% url 'logout' %}">
                         {% csrf_token %}
-                        <button type="submit">Log out</button>
+                        <button type="submit">
+                            Logout
+                        </button>
                     </form>
                 {% else %}
-                    <a href="{% url 'login' %}">Log in</a>
-                    <a class="nav-cta" href="{% url 'register' %}">Create account</a>
-                {% endif %}
+                    <a href="{% url 'home' %}" class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                        Home
+                    </a>
 
-                {% if user.is_staff %}
-                    <a href="/admin/">Admin</a>
+                    <a href="{% url 'login' %}" class="{% if request.resolver_match.url_name == 'login' %}active{% endif %}">
+                        Login
+                    </a>
+
+                    <a href="{% url 'register' %}" class="{% if request.resolver_match.url_name == 'register' %}active{% endif %}">
+                        Register
+                    </a>
                 {% endif %}
             </div>
         </nav>
     </header>
 
-    <main class="page-container">
+    <main class="page-shell">
         {% if messages %}
             <section class="messages">
                 {% for message in messages %}
@@ -57,7 +76,9 @@
     </main>
 
     <footer class="site-footer">
-        <p>MatchPick — Private football prediction competition app.</p>
+        <p>
+            MatchPick — private football prediction leagues.
+        </p>
     </footer>
 </body>
 </html>
