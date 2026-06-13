@@ -1,10 +1,13 @@
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+IS_TESTING = "test" in sys.argv
 
 
 SECRET_KEY = os.environ.get(
@@ -75,7 +78,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-if DATABASE_URL:
+if DATABASE_URL and not IS_TESTING:
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -121,7 +124,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
-if DEBUG:
+if DEBUG or IS_TESTING:
     STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",

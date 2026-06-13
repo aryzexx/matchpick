@@ -6,6 +6,34 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
+    .prediction-inline-message {
+        display: none;
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 14px;
+    }
+
+    .prediction-inline-message.success {
+        display: block;
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+
+    .prediction-inline-message.error {
+        display: block;
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+
+    .prediction-option.is-saving {
+        opacity: 0.7;
+        cursor: wait;
+    }
+
     @media (max-width: 900px) {
         .matches-details-grid {
             grid-template-columns: 1fr;
@@ -63,7 +91,7 @@
 {% if matches %}
     <section class="matches-list">
         {% for match in matches %}
-            <article class="matches-card">
+            <article class="matches-card" id="match-{{ match.id }}">
                 <div class="matches-main">
                     <div>
                         <p class="matches-stage">{{ match.get_stage_display }}</p>
@@ -124,18 +152,21 @@
                     <div class="prediction-panel">
                         <h3>Your prediction</h3>
 
-                        {% if match.user_prediction %}
-                            <p class="prediction-help">
+                        <p class="prediction-help">
+                            {% if match.user_prediction %}
                                 Current prediction:
-                                <strong>{{ match.user_prediction.get_prediction_display }}</strong>.
+                                <strong class="current-prediction-text">
+                                    {{ match.user_prediction.get_prediction_display }}
+                                </strong>.
                                 You can update it until kickoff.
-                            </p>
-                        {% else %}
-                            <p class="prediction-help">
-                                Choose what you think the main match outcome will be.
+                            {% else %}
+                                Current prediction:
+                                <strong class="current-prediction-text">
+                                    Not selected yet
+                                </strong>.
                                 You can change your prediction until kickoff.
-                            </p>
-                        {% endif %}
+                            {% endif %}
+                        </p>
 
                         <form class="prediction-form" method="post" action="{% url 'submit_prediction' match.id %}">
                             {% csrf_token %}
@@ -167,6 +198,8 @@
                                 {{ match.away_team }} win
                             </button>
                         </form>
+
+                        <div class="prediction-inline-message" aria-live="polite"></div>
                     </div>
                 {% else %}
                     <div class="prediction-locked">
@@ -207,4 +240,74 @@
         {% endif %}
     </section>
 {% endif %}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const predictionForms = document.querySelectorAll(".prediction-form");
+
+        predictionForms.forEach(function (form) {
+            form.addEventListener("submit", async function (event) {
+                event.preventDefault();
+
+                const clickedButton = event.submitter;
+                const panel = form.closest(".prediction-panel");
+                const messageBox = panel.querySelector(".prediction-inline-message");
+                const currentPredictionText = panel.querySelector(".current-prediction-text");
+                const optionButtons = form.querySelectorAll(".prediction-option");
+
+                if (!clickedButton) {
+                    return;
+                }
+
+                optionButtons.forEach(function (button) {
+                    button.disabled = true;
+                    button.classList.add("is-saving");
+                });
+
+                messageBox.className = "prediction-inline-message";
+                messageBox.textContent = "";
+
+                const formData = new FormData(form);
+                formData.set("prediction", clickedButton.value);
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || "Prediction could not be saved.");
+                    }
+
+                    optionButtons.forEach(function (button) {
+                        button.classList.remove("selected");
+
+                        if (button.value === data.prediction) {
+                            button.classList.add("selected");
+                        }
+                    });
+
+                    currentPredictionText.textContent = data.prediction_display;
+
+                    messageBox.textContent = data.message;
+                    messageBox.classList.add("success");
+                } catch (error) {
+                    messageBox.textContent = error.message;
+                    messageBox.classList.add("error");
+                } finally {
+                    optionButtons.forEach(function (button) {
+                        button.disabled = false;
+                        button.classList.remove("is-saving");
+                    });
+                }
+            });
+        });
+    });
+</script>
 {% endblock %}

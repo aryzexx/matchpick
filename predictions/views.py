@@ -2,7 +2,9 @@ from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -171,9 +173,15 @@ def matches(request):
 def submit_prediction(request, match_id):
     """
     Allows a logged-in user to submit or update a prediction for a match.
+
+    Normal browser form submission still works as a fallback. When the request
+    comes from JavaScript, the view returns JSON so the page can update smoothly
+    without refreshing.
     """
 
     match = get_object_or_404(Match, id=match_id)
+    is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+    match_anchor_url = f"{reverse('matches')}#match-{match.id}"
 
     membership = (
         GroupMember.objects.filter(user=request.user)
@@ -182,18 +190,39 @@ def submit_prediction(request, match_id):
     )
 
     if membership is None:
-        messages.error(
-            request,
-            "You are not linked to a competition group, so you cannot submit predictions.",
+        error_message = (
+            "You are not linked to a competition group, so you cannot submit predictions."
         )
-        return redirect("matches")
+
+        if is_ajax:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": error_message,
+                },
+                status=400,
+            )
+
+        messages.error(request, error_message)
+        return redirect(match_anchor_url)
 
     if not match.is_voting_open:
-        messages.error(
-            request,
-            "Voting for this match is locked because kickoff has already passed or the match is not scheduled.",
+        error_message = (
+            "Voting for this match is locked because kickoff has already passed "
+            "or the match is not scheduled."
         )
-        return redirect("matches")
+
+        if is_ajax:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": error_message,
+                },
+                status=400,
+            )
+
+        messages.error(request, error_message)
+        return redirect(match_anchor_url)
 
     prediction_choice = request.POST.get("prediction")
 
@@ -204,8 +233,19 @@ def submit_prediction(request, match_id):
     ]
 
     if prediction_choice not in valid_choices:
-        messages.error(request, "Invalid prediction option.")
-        return redirect("matches")
+        error_message = "Invalid prediction option."
+
+        if is_ajax:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": error_message,
+                },
+                status=400,
+            )
+
+        messages.error(request, error_message)
+        return redirect(match_anchor_url)
 
     prediction, created = Prediction.objects.update_or_create(
         user=request.user,
@@ -217,17 +257,23 @@ def submit_prediction(request, match_id):
     )
 
     if created:
-        messages.success(
-            request,
-            f"Prediction saved for {match.home_team} vs {match.away_team}.",
-        )
+        success_message = f"Prediction saved for {match.home_team} vs {match.away_team}."
     else:
-        messages.success(
-            request,
-            f"Prediction updated for {match.home_team} vs {match.away_team}.",
+        success_message = f"Prediction updated for {match.home_team} vs {match.away_team}."
+
+    if is_ajax:
+        return JsonResponse(
+            {
+                "success": True,
+                "message": success_message,
+                "prediction": prediction.prediction,
+                "prediction_display": prediction.get_prediction_display(),
+                "match_id": match.id,
+            }
         )
 
-    return redirect("matches")
+    messages.success(request, success_message)
+    return redirect(match_anchor_url)
 
 
 @login_required
