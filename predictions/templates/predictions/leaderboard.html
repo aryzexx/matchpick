@@ -7,24 +7,8 @@
     <h1>Global Leaderboard</h1>
 
     <p>
-        Rankings across everyone using MatchPick. This page is only visible to logged-in users.
+        This leaderboard includes every player across all leagues. A prediction is stored once per match and counts everywhere the player competes.
     </p>
-</section>
-
-<section class="leaderboard-explainer">
-    <div>
-        <p class="eyebrow">How the leaderboard works</p>
-
-        <h2>Performance, not just activity</h2>
-    </div>
-
-    <div class="explainer-grid">
-        <p><strong>Points</strong> = 3 points for each correct pick.</p>
-        <p><strong>Correct Picks</strong> = finished matches predicted correctly.</p>
-        <p><strong>Incorrect Picks</strong> = finished matches predicted wrongly.</p>
-        <p><strong>Missed Picks</strong> = finished matches where no pick was submitted.</p>
-        <p><strong>Accuracy</strong> = correct picks divided by completed picks.</p>
-    </div>
 </section>
 
 <section class="summary-grid">
@@ -33,14 +17,14 @@
         <strong>{{ total_members }}</strong>
     </article>
 
+    <article class="summary-card success">
+        <span class="summary-label">Highest Points</span>
+        <strong>{{ highest_points }}</strong>
+    </article>
+
     <article class="summary-card">
         <span class="summary-label">Finished Matches</span>
         <strong>{{ finished_matches_count }}</strong>
-    </article>
-
-    <article class="summary-card success">
-        <span class="summary-label">Top Score</span>
-        <strong>{{ highest_points }}</strong>
     </article>
 
     <article class="summary-card">
@@ -53,9 +37,33 @@
     <article class="insight-card">
         <span>Top Scorer</span>
 
-        {% if top_scorer %}
-            <strong>{{ top_scorer.username }}</strong>
-            <p>{{ top_scorer.total_points }} points</p>
+        {% if top_scorer_summary %}
+            <strong>{{ top_scorer_summary.display_names }}</strong>
+
+            <p>
+                {{ top_scorer_summary.value }} {{ top_scorer_summary.value_label }}
+                {% if top_scorer_summary.has_tie %}
+                    · {{ top_scorer_summary.count }} players tied
+                {% endif %}
+            </p>
+        {% else %}
+            <strong>—</strong>
+            <p>No players yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="insight-card">
+        <span>Best Accuracy</span>
+
+        {% if most_accurate_summary %}
+            <strong>{{ most_accurate_summary.display_names }}</strong>
+
+            <p>
+                {{ most_accurate_summary.value }} {{ most_accurate_summary.value_label }}
+                {% if most_accurate_summary.has_tie %}
+                    · {{ most_accurate_summary.count }} players tied
+                {% endif %}
+            </p>
         {% else %}
             <strong>—</strong>
             <p>No scored predictions yet.</p>
@@ -63,28 +71,63 @@
     </article>
 
     <article class="insight-card">
-        <span>Best Accuracy</span>
-
-        {% if most_accurate %}
-            <strong>{{ most_accurate.username }}</strong>
-            <p>{{ most_accurate.accuracy }}% accuracy</p>
-        {% else %}
-            <strong>—</strong>
-            <p>No completed picks yet.</p>
-        {% endif %}
-    </article>
-
-    <article class="insight-card">
         <span>Fewest Missed Picks</span>
 
-        {% if fewest_missed %}
-            <strong>{{ fewest_missed.username }}</strong>
-            <p>{{ fewest_missed.missed_finished_matches }} missed</p>
+        {% if fewest_missed_summary %}
+            <strong>{{ fewest_missed_summary.display_names }}</strong>
+
+            <p>
+                {{ fewest_missed_summary.value }} {{ fewest_missed_summary.value_label }}
+                {% if fewest_missed_summary.has_tie %}
+                    · {{ fewest_missed_summary.count }} players tied
+                {% endif %}
+            </p>
         {% else %}
             <strong>—</strong>
-            <p>No finished matches yet.</p>
+            <p>No players yet.</p>
         {% endif %}
     </article>
+</section>
+
+<section class="ranking-rules-card">
+    <div class="ranking-rules-copy">
+        <p class="eyebrow">Leaderboard rules</p>
+
+        <h2>How the table is ordered</h2>
+
+        <p>
+            The leaderboard is sorted automatically so players with stronger prediction records rise to the top.
+        </p>
+    </div>
+
+    <div class="ranking-rule-list">
+        <article class="ranking-rule-item">
+            <span class="rule-number">1</span>
+
+            <div>
+                <strong>Points first</strong>
+                <p>Correct prediction = 3 points. Wrong or missed prediction = 0 points.</p>
+            </div>
+        </article>
+
+        <article class="ranking-rule-item">
+            <span class="rule-number">2</span>
+
+            <div>
+                <strong>Then correct picks</strong>
+                <p>If points are tied, the player with more correct predictions ranks higher.</p>
+            </div>
+        </article>
+
+        <article class="ranking-rule-item">
+            <span class="rule-number">3</span>
+
+            <div>
+                <strong>Then missed picks</strong>
+                <p>If still tied, fewer missed finished matches ranks higher, then username.</p>
+            </div>
+        </article>
+    </div>
 </section>
 
 {% if leaderboard_rows %}
@@ -93,14 +136,16 @@
             <div>
                 <p class="eyebrow">All players</p>
 
-                <h2>Global ranking</h2>
+                <h2>Current standings</h2>
             </div>
 
-            <span class="leaderboard-scope-pill dark-text">Global</span>
+            <span class="leaderboard-scope-pill dark-text">
+                Global
+            </span>
         </div>
 
-        <div class="leaderboard-table-wrapper">
-            <table class="real-leaderboard-table">
+        <div class="table-wrapper">
+            <table class="leaderboard-table">
                 <thead>
                     <tr>
                         <th>Rank</th>
@@ -117,38 +162,28 @@
                     {% for row in leaderboard_rows %}
                         <tr class="{% if row.is_current_user %}current-user-row{% endif %}">
                             <td>
-                                <span class="rank-badge {% if row.rank == 1 %}rank-one{% elif row.rank == 2 %}rank-two{% elif row.rank == 3 %}rank-three{% endif %}">
-                                    {{ row.rank }}
-                                </span>
+                                <span class="rank-pill">#{{ row.rank }}</span>
                             </td>
 
                             <td>
-                                <span class="player-name">
-                                    {{ row.username }}
+                                <strong>{{ row.username }}</strong>
 
-                                    {% if row.is_current_user %}
-                                        <span class="you-pill">You</span>
-                                    {% endif %}
-                                </span>
-
-                                <span class="player-meta">{{ row.role }}</span>
+                                {% if row.is_current_user %}
+                                    <span class="you-pill">You</span>
+                                {% endif %}
                             </td>
 
                             <td>
-                                <span class="points-value">{{ row.total_points }}</span>
+                                <strong>{{ row.total_points }}</strong>
                             </td>
 
                             <td>{{ row.correct_predictions }}</td>
 
                             <td>{{ row.incorrect_predictions }}</td>
 
-                            <td>
-                                <span class="missed-value">{{ row.missed_finished_matches }}</span>
-                            </td>
+                            <td>{{ row.missed_finished_matches }}</td>
 
-                            <td>
-                                <span class="accuracy-pill">{{ row.accuracy }}%</span>
-                            </td>
+                            <td>{{ row.accuracy }}%</td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -160,7 +195,7 @@
         <h2>No leaderboard data yet</h2>
 
         <p>
-            Once players join leagues and submit predictions, they will appear here.
+            The leaderboard will appear after players join leagues and submit predictions.
         </p>
     </section>
 {% endif %}

@@ -436,8 +436,10 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Voting split after lock")
-        self.assertContains(response, "Argentina win")
-        self.assertContains(response, "Brazil win")
+        self.assertContains(response, "Argentina")
+        self.assertContains(response, "Brazil")
+        self.assertContains(response, "Argentina flag")
+        self.assertContains(response, "Brazil flag")
         self.assertContains(response, "50%")
 
     def test_insights_page_shows_locked_match_voting_split(self):
@@ -464,7 +466,74 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("insights"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Australia vs Turkey")
-        self.assertContains(response, "Australia win")
-        self.assertContains(response, "100%")
+        self.assertContains(response, "Australia")
+        self.assertContains(response, "Turkey")
+        self.assertContains(response, "Australia flag")
+        self.assertContains(response, "Turkey flag")
         self.assertContains(response, "Most Backed Team")
+        self.assertContains(response, "Australia")
+        self.assertContains(response, "100%")
+        self.assertContains(response, "2 picks")
+
+    def test_global_leaderboard_card_shows_tied_fewest_missed_players(self):
+        third_user = User.objects.create_user(
+            username="third",
+            password="Testpass123!",
+        )
+
+        GroupMember.objects.create(
+            user=third_user,
+            group=self.family,
+            role=GroupMember.ROLE_MEMBER,
+        )
+
+        finished_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            result=Match.RESULT_HOME,
+            home_score=2,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        Prediction.objects.create(
+            user=self.friend,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        Prediction.objects.create(
+            user=third_user,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fewest Missed Picks")
+        self.assertContains(response, "aryan, friend, third")
+        self.assertContains(response, "3 players tied")
+
+    def test_match_model_displays_team_flags(self):
+        match = self.create_match(
+            home_team="Australia",
+            away_team="Turkey",
+            kickoff_delta_hours=24,
+        )
+
+        self.assertEqual(match.home_team_flag, "🇦🇺")
+        self.assertEqual(match.away_team_flag, "🇹🇷")
+        self.assertEqual(match.home_team_flag_url, "https://flagcdn.com/w40/au.png")
+        self.assertEqual(match.away_team_flag_url, "https://flagcdn.com/w40/tr.png")
+        self.assertEqual(match.home_team_with_flag, "🇦🇺 Australia")
+        self.assertEqual(match.away_team_with_flag, "🇹🇷 Turkey")

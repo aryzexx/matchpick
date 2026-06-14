@@ -7,44 +7,8 @@
     <h1>{{ group.name }}</h1>
 
     <p>
-        This leaderboard only ranks members of this league.
+        This leaderboard only includes members of {{ group.name }}. Your one prediction per match still counts across every league you belong to.
     </p>
-</section>
-
-<section class="league-hero-card">
-    <div>
-        <p class="eyebrow">Private league</p>
-
-        <h2>{{ group.name }}</h2>
-
-        <p>
-            Your predictions are shared across all leagues, but this table only ranks members of {{ group.name }}.
-        </p>
-    </div>
-
-    <div class="league-hero-actions">
-        <span class="leaderboard-scope-pill dark-text">{{ current_membership.get_role_display }}</span>
-
-        <a class="button secondary compact" href="{% url 'leagues' %}">
-            Back to My Leagues
-        </a>
-    </div>
-</section>
-
-<section class="leaderboard-explainer">
-    <div>
-        <p class="eyebrow">How this league table works</p>
-
-        <h2>Same picks, league-only ranking</h2>
-    </div>
-
-    <div class="explainer-grid">
-        <p><strong>Points</strong> = 3 points for each correct pick.</p>
-        <p><strong>Correct Picks</strong> = finished matches predicted correctly.</p>
-        <p><strong>Incorrect Picks</strong> = finished matches predicted wrongly.</p>
-        <p><strong>Missed Picks</strong> = finished matches where no pick was submitted.</p>
-        <p><strong>Accuracy</strong> = correct picks divided by completed picks.</p>
-    </div>
 </section>
 
 <section class="summary-grid">
@@ -73,21 +37,33 @@
     <article class="insight-card">
         <span>Top Scorer</span>
 
-        {% if top_scorer %}
-            <strong>{{ top_scorer.username }}</strong>
-            <p>{{ top_scorer.total_points }} points</p>
+        {% if top_scorer_summary %}
+            <strong>{{ top_scorer_summary.display_names }}</strong>
+
+            <p>
+                {{ top_scorer_summary.value }} {{ top_scorer_summary.value_label }}
+                {% if top_scorer_summary.has_tie %}
+                    · {{ top_scorer_summary.count }} players tied
+                {% endif %}
+            </p>
         {% else %}
             <strong>—</strong>
-            <p>No scored predictions yet.</p>
+            <p>No players yet.</p>
         {% endif %}
     </article>
 
     <article class="insight-card">
         <span>Best Accuracy</span>
 
-        {% if most_accurate %}
-            <strong>{{ most_accurate.username }}</strong>
-            <p>{{ most_accurate.accuracy }}% accuracy</p>
+        {% if most_accurate_summary %}
+            <strong>{{ most_accurate_summary.display_names }}</strong>
+
+            <p>
+                {{ most_accurate_summary.value }} {{ most_accurate_summary.value_label }}
+                {% if most_accurate_summary.has_tie %}
+                    · {{ most_accurate_summary.count }} players tied
+                {% endif %}
+            </p>
         {% else %}
             <strong>—</strong>
             <p>No completed picks yet.</p>
@@ -97,12 +73,18 @@
     <article class="insight-card">
         <span>Fewest Missed Picks</span>
 
-        {% if fewest_missed %}
-            <strong>{{ fewest_missed.username }}</strong>
-            <p>{{ fewest_missed.missed_finished_matches }} missed</p>
+        {% if fewest_missed_summary %}
+            <strong>{{ fewest_missed_summary.display_names }}</strong>
+
+            <p>
+                {{ fewest_missed_summary.value }} {{ fewest_missed_summary.value_label }}
+                {% if fewest_missed_summary.has_tie %}
+                    · {{ fewest_missed_summary.count }} players tied
+                {% endif %}
+            </p>
         {% else %}
             <strong>—</strong>
-            <p>No finished matches yet.</p>
+            <p>No players yet.</p>
         {% endif %}
     </article>
 </section>
@@ -116,11 +98,13 @@
                 <h2>{{ group.name }} leaderboard</h2>
             </div>
 
-            <span class="leaderboard-scope-pill dark-text">League</span>
+            <span class="leaderboard-scope-pill dark-text">
+                League
+            </span>
         </div>
 
-        <div class="leaderboard-table-wrapper">
-            <table class="real-leaderboard-table">
+        <div class="table-wrapper">
+            <table class="leaderboard-table">
                 <thead>
                     <tr>
                         <th>Rank</th>
@@ -137,38 +121,30 @@
                     {% for row in leaderboard_rows %}
                         <tr class="{% if row.is_current_user %}current-user-row{% endif %}">
                             <td>
-                                <span class="rank-badge {% if row.rank == 1 %}rank-one{% elif row.rank == 2 %}rank-two{% elif row.rank == 3 %}rank-three{% endif %}">
-                                    {{ row.rank }}
-                                </span>
+                                <span class="rank-pill">#{{ row.rank }}</span>
                             </td>
 
                             <td>
-                                <span class="player-name">
-                                    {{ row.username }}
+                                <strong>{{ row.username }}</strong>
 
-                                    {% if row.is_current_user %}
-                                        <span class="you-pill">You</span>
-                                    {% endif %}
-                                </span>
+                                {% if row.is_current_user %}
+                                    <span class="you-pill">You</span>
+                                {% endif %}
 
-                                <span class="player-meta">{{ row.role }}</span>
+                                <span class="role-text">{{ row.role }}</span>
                             </td>
 
                             <td>
-                                <span class="points-value">{{ row.total_points }}</span>
+                                <strong>{{ row.total_points }}</strong>
                             </td>
 
                             <td>{{ row.correct_predictions }}</td>
 
                             <td>{{ row.incorrect_predictions }}</td>
 
-                            <td>
-                                <span class="missed-value">{{ row.missed_finished_matches }}</span>
-                            </td>
+                            <td>{{ row.missed_finished_matches }}</td>
 
-                            <td>
-                                <span class="accuracy-pill">{{ row.accuracy }}%</span>
-                            </td>
+                            <td>{{ row.accuracy }}%</td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -176,11 +152,11 @@
         </div>
     </section>
 {% else %}
-    <section class="glass-card">
-        <h2>No leaderboard data yet</h2>
+    <section class="glass-card elevated-card">
+        <h2>No league data yet</h2>
 
         <p>
-            Once members submit predictions, they will appear here.
+            This leaderboard will appear after members join this league and submit predictions.
         </p>
     </section>
 {% endif %}

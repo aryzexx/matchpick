@@ -11,322 +11,573 @@
     </p>
 </section>
 
-{% if user.is_staff %}
-    <section class="admin-sync-card">
-        <div>
-            <p class="eyebrow">Admin tool</p>
+<div class="matches-page-stack">
+    {% if user.is_staff %}
+        <section class="admin-sync-card">
+            <div>
+                <p class="eyebrow">Admin tool</p>
 
-            <h2>Sync latest fixtures and results</h2>
+                <h2>Sync latest fixtures and results</h2>
+
+                <p>
+                    This pulls the latest available results from the external data source.
+                    Results may still be delayed if the source has not updated yet.
+                </p>
+            </div>
+
+            <form method="post" action="{% url 'sync_latest_results' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+                <button class="button primary" type="submit">
+                    Sync Results
+                </button>
+            </form>
+        </section>
+    {% endif %}
+
+    <section class="summary-grid">
+        <article class="summary-card">
+            <span class="summary-label">Total Fixtures</span>
+            <strong>{{ total_matches }}</strong>
+        </article>
+
+        <article class="summary-card success">
+            <span class="summary-label">Open Now</span>
+            <strong>{{ open_matches_count }}</strong>
+        </article>
+
+        <article class="summary-card warning">
+            <span class="summary-label">Locked</span>
+            <strong>{{ locked_matches_count }}</strong>
+        </article>
+
+        <article class="summary-card">
+            <span class="summary-label">Finished</span>
+            <strong>{{ finished_matches }}</strong>
+        </article>
+    </section>
+
+    <section class="personal-progress-card elevated-card">
+        <div>
+            <p class="eyebrow">Your prediction progress</p>
+
+            <h2>Keep your open picks up to date</h2>
 
             <p>
-                This pulls the latest available results from the external data source.
-                Results may still be delayed if the source has not updated yet.
+                These cards only show your own progress for matches currently open for prediction.
             </p>
         </div>
 
-        <form method="post" action="{% url 'sync_latest_results' %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-
-            <button class="button primary" type="submit">
-                Sync Results
-            </button>
-        </form>
-    </section>
-{% endif %}
-
-<section class="summary-grid">
-    <article class="summary-card">
-        <span class="summary-label">Total Fixtures</span>
-        <strong>{{ total_matches }}</strong>
-    </article>
-
-    <article class="summary-card success">
-        <span class="summary-label">Open Now</span>
-        <strong>{{ open_matches_count }}</strong>
-    </article>
-
-    <article class="summary-card warning">
-        <span class="summary-label">Locked</span>
-        <strong>{{ locked_matches_count }}</strong>
-    </article>
-
-    <article class="summary-card">
-        <span class="summary-label">Finished</span>
-        <strong>{{ finished_matches }}</strong>
-    </article>
-</section>
-
-<section class="personal-progress-card">
-    <div>
-        <p class="eyebrow">Your prediction progress</p>
-
-        <h2>Keep your open picks up to date</h2>
-
-        <p>
-            These cards only show your own progress for matches currently open for prediction.
-        </p>
-    </div>
-
-    <div class="progress-stats">
-        <div>
-            <span>Open Matches</span>
-            <strong>{{ open_matches_count }}</strong>
-        </div>
-
-        <div>
-            <span>Picks Made</span>
-            <strong>{{ user_open_predictions_made }}</strong>
-        </div>
-
-        <div>
-            <span>Still Pending</span>
-            <strong>{{ user_open_predictions_pending }}</strong>
-        </div>
-    </div>
-</section>
-
-{% if user_memberships %}
-    <section class="glass-card">
-        <div class="section-title-row">
+        <div class="progress-stats">
             <div>
-                <p class="eyebrow">Your leagues</p>
-
-                <h2>Competing in</h2>
+                <span>Open Matches</span>
+                <strong>{{ open_matches_count }}</strong>
             </div>
 
-            <a class="button secondary compact" href="{% url 'leagues' %}">
-                Manage Leagues
-            </a>
-        </div>
+            <div>
+                <span>Picks Made</span>
+                <strong>{{ user_open_predictions_made }}</strong>
+            </div>
 
-        <div class="pill-list">
-            {% for membership in user_memberships %}
-                <a class="soft-pill" href="{% url 'league_detail' membership.group.id %}">
-                    {{ membership.group.name }}
-                </a>
-            {% endfor %}
+            <div>
+                <span>Still Pending</span>
+                <strong>{{ user_open_predictions_pending }}</strong>
+            </div>
         </div>
     </section>
-{% else %}
-    <section class="glass-card">
-        <h2>No league membership found</h2>
 
-        <p>
-            Your account is not currently linked to a league. Join a league using a league code.
-        </p>
+    {% if closing_soon_matches %}
+        <section class="closing-soon-card">
+            <div class="section-title-row">
+                <div>
+                    <p class="eyebrow">Time-sensitive</p>
 
-        <a class="button primary" href="{% url 'leagues' %}">
-            Join a League
-        </a>
-    </section>
-{% endif %}
+                    <h2>Closing soon</h2>
 
-{% if matches %}
-    <section class="matches-list">
-        {% for match in matches %}
-            <article class="match-card" id="match-{{ match.id }}">
-                <div class="match-card-header">
-                    <div>
-                        <p class="match-stage">{{ match.get_stage_display }}</p>
-
-                        <h2>
-                            {% if match.home_team_flag %}
-                                <span class="team-flag">{{ match.home_team_flag }}</span>
-                            {% endif %}
-
-                            {{ match.home_team }}
-
-                            <span class="versus">vs</span>
-
-                            {% if match.away_team_flag %}
-                                <span class="team-flag">{{ match.away_team_flag }}</span>
-                            {% endif %}
-
-                            {{ match.away_team }}
-                        </h2>
-
-                        <p class="match-kickoff">
-                            Kickoff: {{ match.kickoff_time|date:"D, d M Y H:i" }}
-                        </p>
-                    </div>
-
-                    <div class="match-status-stack">
-                        <span class="status-pill status-{{ match.status }}">
-                            {{ match.get_status_display }}
-                        </span>
-
-                        {% if match.voting_is_open %}
-                            <span class="voting-pill open">Voting Open</span>
-                        {% else %}
-                            <span class="voting-pill locked">Voting Locked</span>
-                        {% endif %}
-                    </div>
+                    <p>
+                        These open fixtures kick off soon. Submit or update your picks before voting locks.
+                    </p>
                 </div>
 
-                <div class="match-meta-grid">
-                    <div>
-                        <span>Score</span>
-                        <strong>{{ match.score_display }}</strong>
-                    </div>
+                <button class="button secondary compact js-activate-filter" type="button" data-filter="closing">
+                    View All
+                </button>
+            </div>
 
-                    <div>
-                        <span>Result</span>
-
+            <div class="closing-soon-grid">
+                {% for match in closing_soon_matches %}
+                    <a class="closing-soon-item" href="#match-{{ match.id }}">
                         <strong>
-                            {% if match.has_result %}
-                                {{ match.get_result_display }}
-                            {% else %}
-                                Awaiting result
-                            {% endif %}
+                            <span class="team-inline">
+                                {% if match.home_team_flag_url %}
+                                    <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                {% endif %}
+                                {{ match.home_team }}
+                            </span>
+
+                            <span class="mini-versus">vs</span>
+
+                            <span class="team-inline">
+                                {% if match.away_team_flag_url %}
+                                    <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                {% endif %}
+                                {{ match.away_team }}
+                            </span>
                         </strong>
-                    </div>
+
+                        <span>{{ match.timing_label }}</span>
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {% if user_memberships %}
+        <section class="glass-card spaced-card elevated-card">
+            <div class="section-title-row">
+                <div>
+                    <p class="eyebrow">Your leagues</p>
+
+                    <h2>Competing in</h2>
                 </div>
 
-                {% if match.voting_is_open and user_memberships %}
-                    <div class="prediction-panel">
-                        <div class="prediction-panel-copy">
-                            <h3>Your prediction</h3>
+                <a class="button secondary compact" href="{% url 'leagues' %}">
+                    Manage Leagues
+                </a>
+            </div>
 
-                            <p>
-                                {% if match.user_prediction %}
-                                    Current pick:
-                                    <strong class="current-prediction-text">
-                                        {{ match.user_prediction.get_prediction_display }}
-                                    </strong>.
-                                {% else %}
-                                    Current pick:
-                                    <strong class="current-prediction-text">
-                                        Not selected yet
-                                    </strong>.
-                                {% endif %}
-                                This counts in all of your leagues.
-                            </p>
-                        </div>
+            <div class="pill-list">
+                {% for membership in user_memberships %}
+                    <a class="soft-pill" href="{% url 'league_detail' membership.group.id %}">
+                        {{ membership.group.name }}
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
+    {% else %}
+        <section class="glass-card spaced-card elevated-card">
+            <h2>No league membership found</h2>
 
-                        <form class="prediction-form" method="post" action="{% url 'submit_prediction' match.id %}">
-                            {% csrf_token %}
+            <p>
+                Your account is not currently linked to a league. Join a league using a league code.
+            </p>
 
-                            <button
-                                class="prediction-option {% if match.user_prediction.prediction == 'home' %}selected{% endif %}"
-                                type="submit"
-                                name="prediction"
-                                value="home"
-                            >
-                                {{ match.home_team }} win
-                            </button>
+            <a class="button primary" href="{% url 'leagues' %}">
+                Join a League
+            </a>
+        </section>
+    {% endif %}
 
-                            <button
-                                class="prediction-option {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
-                                type="submit"
-                                name="prediction"
-                                value="draw"
-                            >
-                                Draw
-                            </button>
+    <section class="fixture-board-shell" id="fixture-board">
+        <div class="fixture-board-toolbar">
+            <div>
+                <p class="eyebrow">Fixture filters</p>
 
-                            <button
-                                class="prediction-option {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
-                                type="submit"
-                                name="prediction"
-                                value="away"
-                            >
-                                {{ match.away_team }} win
-                            </button>
-                        </form>
+                <h2>Find the matches that matter now</h2>
+            </div>
 
-                        <div class="prediction-inline-message" aria-live="polite"></div>
+            <div class="match-filter-tabs" role="tablist" aria-label="Match filters">
+                {% for tab in filter_tabs %}
+                    <button
+                        class="match-filter-tab {% if tab.key == 'all' %}active{% endif %}"
+                        type="button"
+                        data-filter="{{ tab.key }}"
+                    >
+                        <span>{{ tab.label }}</span>
+                        <strong>{{ tab.count }}</strong>
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
 
-                        <div class="trend-locked-note">
-                            Prediction trends will appear after voting closes for this match.
-                        </div>
-                    </div>
-                {% else %}
-                    <div class="locked-panel">
-                        {% if match.user_prediction %}
-                            <p>
-                                Your pick:
-                                <strong>{{ match.user_prediction.get_prediction_display }}</strong>
-                            </p>
+        {% if matches %}
+            <div class="fixture-card-list" id="fixture-card-list">
+                {% for match in matches %}
+                    <article
+                        class="match-card fixture-match-card"
+                        id="match-{{ match.id }}"
+                        data-match-card="true"
+                        data-open="{% if match.voting_is_open %}true{% else %}false{% endif %}"
+                        data-pending="{% if match.voting_is_open and not match.user_prediction %}true{% else %}false{% endif %}"
+                        data-closing="{% if match.is_closing_soon %}true{% else %}false{% endif %}"
+                        data-finished="{% if match.status == 'finished' %}true{% else %}false{% endif %}"
+                        data-upcoming="{% if match.status == 'scheduled' and not match.voting_is_open %}true{% else %}false{% endif %}"
+                    >
+                        <div class="match-card-header">
+                            <div>
+                                <p class="match-stage">{{ match.get_stage_display }}</p>
 
-                            {% if match.has_result %}
-                                <p>
-                                    Points awarded:
-                                    <strong>{{ match.user_prediction.points_awarded }}</strong>
+                                <h2 class="match-title-with-flags">
+                                    <span class="team-title-block">
+                                        {% if match.home_team_flag_url %}
+                                            <img class="team-flag-img large" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        <span>{{ match.home_team }}</span>
+                                    </span>
+
+                                    <span class="versus">vs</span>
+
+                                    <span class="team-title-block">
+                                        {% if match.away_team_flag_url %}
+                                            <img class="team-flag-img large" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        <span>{{ match.away_team }}</span>
+                                    </span>
+                                </h2>
+
+                                <p class="match-kickoff">
+                                    Kickoff: {{ match.kickoff_time|date:"D, d M Y H:i" }}
                                 </p>
-                            {% endif %}
+                            </div>
+
+                            <div class="match-status-stack">
+                                <span class="status-pill status-{{ match.status }}">
+                                    {{ match.get_status_display }}
+                                </span>
+
+                                {% if match.voting_is_open %}
+                                    <span class="voting-pill open">Voting Open</span>
+                                {% else %}
+                                    <span class="voting-pill locked">Voting Locked</span>
+                                {% endif %}
+
+                                <span class="timing-pill {% if match.is_closing_soon %}urgent{% endif %}">
+                                    {{ match.timing_label }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="match-meta-grid">
+                            <div>
+                                <span>Score</span>
+                                <strong>{{ match.score_display }}</strong>
+                            </div>
+
+                            <div>
+                                <span>Result</span>
+
+                                <strong>
+                                    {% if match.has_result %}
+                                        {{ match.get_result_display }}
+                                    {% else %}
+                                        Awaiting result
+                                    {% endif %}
+                                </strong>
+                            </div>
+                        </div>
+
+                        {% if match.voting_is_open and user_memberships %}
+                            <div class="prediction-panel">
+                                <div class="prediction-panel-copy">
+                                    <h3>Your prediction</h3>
+
+                                    <p>
+                                        {% if match.user_prediction %}
+                                            Current pick:
+                                            <strong class="current-prediction-text">
+                                                {{ match.user_prediction.get_prediction_display }}
+                                            </strong>.
+                                        {% else %}
+                                            Current pick:
+                                            <strong class="current-prediction-text">
+                                                Not selected yet
+                                            </strong>.
+                                        {% endif %}
+                                        This counts in all of your leagues.
+                                    </p>
+                                </div>
+
+                                <form class="prediction-form" method="post" action="{% url 'submit_prediction' match.id %}">
+                                    {% csrf_token %}
+
+                                    <button
+                                        class="prediction-option {% if match.user_prediction.prediction == 'home' %}selected{% endif %}"
+                                        type="submit"
+                                        name="prediction"
+                                        value="home"
+                                    >
+                                        {% if match.home_team_flag_url %}
+                                            <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        {{ match.home_team }} win
+                                    </button>
+
+                                    <button
+                                        class="prediction-option {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
+                                        type="submit"
+                                        name="prediction"
+                                        value="draw"
+                                    >
+                                        Draw
+                                    </button>
+
+                                    <button
+                                        class="prediction-option {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
+                                        type="submit"
+                                        name="prediction"
+                                        value="away"
+                                    >
+                                        {% if match.away_team_flag_url %}
+                                            <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        {{ match.away_team }} win
+                                    </button>
+                                </form>
+
+                                <div class="prediction-inline-message" aria-live="polite"></div>
+
+                                <div class="trend-locked-note">
+                                    Prediction trends will appear after voting closes for this match.
+                                </div>
+                            </div>
                         {% else %}
-                            <p>No prediction submitted for this match.</p>
-                        {% endif %}
+                            <div class="locked-panel">
+                                {% if match.user_prediction %}
+                                    <p>
+                                        Your pick:
+                                        <strong>{{ match.user_prediction.get_prediction_display }}</strong>
+                                    </p>
 
-                        <p class="locked-reason">{{ match.voting_message }}</p>
+                                    {% if match.has_result %}
+                                        <p>
+                                            Points awarded:
+                                            <strong>{{ match.user_prediction.points_awarded }}</strong>
+                                        </p>
+                                    {% endif %}
+                                {% else %}
+                                    <p>No prediction submitted for this match.</p>
+                                {% endif %}
 
-                        {% if match.trends_visible %}
-                            {% if match.prediction_trends.total_predictions > 0 %}
-                                <div class="trend-panel">
-                                    <div class="trend-panel-heading">
-                                        <div>
-                                            <p class="eyebrow">Prediction trends</p>
-                                            <h3>Voting split after lock</h3>
-                                        </div>
+                                <p class="locked-reason">{{ match.voting_message }}</p>
 
-                                        <span class="trend-total">
-                                            {{ match.prediction_trends.total_predictions }} picks
-                                        </span>
-                                    </div>
-
-                                    <div class="trend-list">
-                                        {% for option in match.prediction_trends.options %}
-                                            <div class="trend-row">
-                                                <div class="trend-row-top">
-                                                    <span>{{ option.label }}</span>
-                                                    <strong>{{ option.percentage }}%</strong>
+                                {% if match.trends_visible %}
+                                    {% if match.prediction_trends.total_predictions > 0 %}
+                                        <div class="trend-panel">
+                                            <div class="trend-panel-heading">
+                                                <div>
+                                                    <p class="eyebrow">Prediction trends</p>
+                                                    <h3>Voting split after lock</h3>
                                                 </div>
 
-                                                <div class="trend-track">
-                                                    <div class="trend-fill" style="--trend-width: {{ option.percentage }}%;"></div>
-                                                </div>
-
-                                                <span class="trend-count">
-                                                    {{ option.count }} pick{% if option.count != 1 %}s{% endif %}
+                                                <span class="trend-total">
+                                                    {{ match.prediction_trends.total_predictions }} picks
                                                 </span>
                                             </div>
-                                        {% endfor %}
+
+                                            <div class="trend-list">
+                                                {% for option in match.prediction_trends.options %}
+                                                    <div class="trend-row">
+                                                        <div class="trend-row-top">
+                                                            <span>
+                                                                {% if option.key == 'home' %}
+                                                                    {% if match.home_team_flag_url %}
+                                                                        <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                                                    {% endif %}
+                                                                    {{ match.home_team }} win
+                                                                {% elif option.key == 'away' %}
+                                                                    {% if match.away_team_flag_url %}
+                                                                        <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                                                    {% endif %}
+                                                                    {{ match.away_team }} win
+                                                                {% else %}
+                                                                    Draw
+                                                                {% endif %}
+                                                            </span>
+
+                                                            <strong>{{ option.percentage }}%</strong>
+                                                        </div>
+
+                                                        <div class="trend-track">
+                                                            <div class="trend-fill" style="--trend-width: {{ option.percentage }}%;"></div>
+                                                        </div>
+
+                                                        <span class="trend-count">
+                                                            {{ option.count }} pick{% if option.count != 1 %}s{% endif %}
+                                                        </span>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="trend-locked-note">
+                                            Voting has closed, but no predictions were submitted for this match.
+                                        </div>
+                                    {% endif %}
+
+                                    {% if match.league_pick_reveals %}
+                                        <div class="league-picks-panel">
+                                            <div class="league-picks-heading">
+                                                <div>
+                                                    <p class="eyebrow">League reveal</p>
+
+                                                    <h3>Who picked what</h3>
+                                                </div>
+
+                                                <span>Visible after lock</span>
+                                            </div>
+
+                                            <div class="league-reveal-grid">
+                                                {% for reveal in match.league_pick_reveals %}
+                                                    <article class="league-reveal-card">
+                                                        <div class="league-reveal-title">
+                                                            <div>
+                                                                <h4>{{ reveal.group.name }}</h4>
+
+                                                                <p>
+                                                                    {{ reveal.submitted_count }} of {{ reveal.total_members }} members submitted a pick.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="league-pick-buckets">
+                                                            {% for bucket in reveal.buckets %}
+                                                                <div class="league-pick-bucket bucket-{{ bucket.key }}">
+                                                                    <div class="bucket-label-row">
+                                                                        <strong>
+                                                                            {% if bucket.flag_url %}
+                                                                                <img class="team-flag-img" src="{{ bucket.flag_url }}" alt="{{ bucket.team }} flag" loading="lazy">
+                                                                            {% endif %}
+                                                                            {{ bucket.label }}
+                                                                        </strong>
+
+                                                                        <span>{{ bucket.members|length }}</span>
+                                                                    </div>
+
+                                                                    {% if bucket.members %}
+                                                                        <div class="member-chip-list">
+                                                                            {% for member in bucket.members %}
+                                                                                <span class="member-chip {% if member.is_current_user %}you{% endif %}">
+                                                                                    {{ member.username }}
+                                                                                    {% if member.is_current_user %}
+                                                                                        <small>You</small>
+                                                                                    {% endif %}
+                                                                                </span>
+                                                                            {% endfor %}
+                                                                        </div>
+                                                                    {% else %}
+                                                                        <p class="empty-bucket-text">No one</p>
+                                                                    {% endif %}
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </article>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <div class="trend-locked-note">
+                                        Prediction trends and league picks are hidden until kickoff so they cannot influence voting.
                                     </div>
-                                </div>
-                            {% else %}
-                                <div class="trend-locked-note">
-                                    Voting has closed, but no predictions were submitted for this match.
-                                </div>
-                            {% endif %}
-                        {% else %}
-                            <div class="trend-locked-note">
-                                Prediction trends are hidden until kickoff so they cannot influence voting.
+                                {% endif %}
                             </div>
                         {% endif %}
-                    </div>
+                    </article>
+                {% endfor %}
+            </div>
+
+            <div class="filter-empty-state" id="filter-empty-state" hidden>
+                <h2>No matches found for this filter</h2>
+
+                <p>
+                    Try another filter, or return to the full fixture list.
+                </p>
+
+                <button class="button primary js-activate-filter" type="button" data-filter="all">
+                    View All Matches
+                </button>
+            </div>
+        {% else %}
+            <div class="filter-empty-state">
+                <h2>No matches have been added yet</h2>
+
+                <p>
+                    Add your first match through the Django admin panel.
+                </p>
+
+                {% if user.is_staff %}
+                    <a class="button primary" href="/admin/predictions/match/add/">
+                        Add Match in Admin
+                    </a>
                 {% endif %}
-            </article>
-        {% endfor %}
-    </section>
-{% else %}
-    <section class="glass-card">
-        <h2>No matches have been added yet</h2>
-
-        <p>
-            Add your first match through the Django admin panel.
-        </p>
-
-        {% if user.is_staff %}
-            <a class="button primary" href="/admin/predictions/match/add/">
-                Add Match in Admin
-            </a>
+            </div>
         {% endif %}
     </section>
-{% endif %}
+</div>
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
+        const filterButtons = document.querySelectorAll("[data-filter]");
+        const matchCards = document.querySelectorAll("[data-match-card='true']");
+        const emptyState = document.getElementById("filter-empty-state");
+        const fixtureBoard = document.getElementById("fixture-board");
+
+        function cardMatchesFilter(card, filterValue) {
+            if (filterValue === "all") {
+                return true;
+            }
+
+            if (filterValue === "open") {
+                return card.dataset.open === "true";
+            }
+
+            if (filterValue === "pending") {
+                return card.dataset.pending === "true";
+            }
+
+            if (filterValue === "closing") {
+                return card.dataset.closing === "true";
+            }
+
+            if (filterValue === "finished") {
+                return card.dataset.finished === "true";
+            }
+
+            if (filterValue === "upcoming") {
+                return card.dataset.upcoming === "true";
+            }
+
+            return true;
+        }
+
+        function activateFilter(filterValue, shouldScroll) {
+            let visibleCount = 0;
+
+            filterButtons.forEach(function (button) {
+                button.classList.toggle("active", button.dataset.filter === filterValue);
+            });
+
+            matchCards.forEach(function (card) {
+                const shouldShow = cardMatchesFilter(card, filterValue);
+
+                card.hidden = !shouldShow;
+
+                if (shouldShow) {
+                    visibleCount += 1;
+                }
+            });
+
+            if (emptyState) {
+                emptyState.hidden = visibleCount !== 0;
+            }
+
+            if (shouldScroll && fixtureBoard) {
+                fixtureBoard.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+            }
+        }
+
+        filterButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                activateFilter(button.dataset.filter, button.classList.contains("js-activate-filter"));
+            });
+        });
+
+        activateFilter("all", false);
+
         const predictionForms = document.querySelectorAll(".prediction-form");
 
         predictionForms.forEach(function (form) {

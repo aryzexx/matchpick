@@ -1,36 +1,206 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
-from django.utils import timezone
+
+
+TEAM_FLAG_MAP = {
+    "algeria": "🇩🇿",
+    "argentina": "🇦🇷",
+    "australia": "🇦🇺",
+    "austria": "🇦🇹",
+    "belgium": "🇧🇪",
+    "bosnia and herzegovina": "🇧🇦",
+    "bosnia & herzegovina": "🇧🇦",
+    "bosnia-herzegovina": "🇧🇦",
+    "bosnia herzegovina": "🇧🇦",
+    "bosnia": "🇧🇦",
+    "brazil": "🇧🇷",
+    "canada": "🇨🇦",
+    "cape verde": "🇨🇻",
+    "colombia": "🇨🇴",
+    "croatia": "🇭🇷",
+    "curacao": "🇨🇼",
+    "curaçao": "🇨🇼",
+    "czechia": "🇨🇿",
+    "czech republic": "🇨🇿",
+    "dr congo": "🇨🇩",
+    "d.r. congo": "🇨🇩",
+    "democratic republic of the congo": "🇨🇩",
+    "ecuador": "🇪🇨",
+    "egypt": "🇪🇬",
+    "england": "🏴",
+    "france": "🇫🇷",
+    "germany": "🇩🇪",
+    "ghana": "🇬🇭",
+    "haiti": "🇭🇹",
+    "iran": "🇮🇷",
+    "iraq": "🇮🇶",
+    "ivory coast": "🇨🇮",
+    "cote d'ivoire": "🇨🇮",
+    "côte d'ivoire": "🇨🇮",
+    "côte d’ivoire": "🇨🇮",
+    "japan": "🇯🇵",
+    "jordan": "🇯🇴",
+    "mexico": "🇲🇽",
+    "morocco": "🇲🇦",
+    "netherlands": "🇳🇱",
+    "new zealand": "🇳🇿",
+    "norway": "🇳🇴",
+    "panama": "🇵🇦",
+    "paraguay": "🇵🇾",
+    "portugal": "🇵🇹",
+    "qatar": "🇶🇦",
+    "saudi arabia": "🇸🇦",
+    "scotland": "🏴",
+    "senegal": "🇸🇳",
+    "south africa": "🇿🇦",
+    "south korea": "🇰🇷",
+    "korea republic": "🇰🇷",
+    "republic of korea": "🇰🇷",
+    "spain": "🇪🇸",
+    "sweden": "🇸🇪",
+    "switzerland": "🇨🇭",
+    "tunisia": "🇹🇳",
+    "turkey": "🇹🇷",
+    "turkiye": "🇹🇷",
+    "türkiye": "🇹🇷",
+    "united states": "🇺🇸",
+    "united states of america": "🇺🇸",
+    "usa": "🇺🇸",
+    "uruguay": "🇺🇾",
+    "uzbekistan": "🇺🇿",
+}
+
+
+TEAM_FLAG_CODE_MAP = {
+    "algeria": "dz",
+    "argentina": "ar",
+    "australia": "au",
+    "austria": "at",
+    "belgium": "be",
+    "bosnia and herzegovina": "ba",
+    "bosnia & herzegovina": "ba",
+    "bosnia-herzegovina": "ba",
+    "bosnia herzegovina": "ba",
+    "bosnia": "ba",
+    "brazil": "br",
+    "canada": "ca",
+    "cape verde": "cv",
+    "colombia": "co",
+    "croatia": "hr",
+    "curacao": "cw",
+    "curaçao": "cw",
+    "czechia": "cz",
+    "czech republic": "cz",
+    "dr congo": "cd",
+    "d.r. congo": "cd",
+    "democratic republic of the congo": "cd",
+    "ecuador": "ec",
+    "egypt": "eg",
+    "england": "gb-eng",
+    "france": "fr",
+    "germany": "de",
+    "ghana": "gh",
+    "haiti": "ht",
+    "iran": "ir",
+    "iraq": "iq",
+    "ivory coast": "ci",
+    "cote d'ivoire": "ci",
+    "côte d'ivoire": "ci",
+    "côte d’ivoire": "ci",
+    "japan": "jp",
+    "jordan": "jo",
+    "mexico": "mx",
+    "morocco": "ma",
+    "netherlands": "nl",
+    "new zealand": "nz",
+    "norway": "no",
+    "panama": "pa",
+    "paraguay": "py",
+    "portugal": "pt",
+    "qatar": "qa",
+    "saudi arabia": "sa",
+    "scotland": "gb-sct",
+    "senegal": "sn",
+    "south africa": "za",
+    "south korea": "kr",
+    "korea republic": "kr",
+    "republic of korea": "kr",
+    "spain": "es",
+    "sweden": "se",
+    "switzerland": "ch",
+    "tunisia": "tn",
+    "turkey": "tr",
+    "turkiye": "tr",
+    "türkiye": "tr",
+    "united states": "us",
+    "united states of america": "us",
+    "usa": "us",
+    "uruguay": "uy",
+    "uzbekistan": "uz",
+}
+
+
+def normalise_team_name(team_name):
+    if not team_name:
+        return ""
+
+    return team_name.strip().lower()
+
+
+def get_team_flag(team_name):
+    return TEAM_FLAG_MAP.get(normalise_team_name(team_name), "")
+
+
+def get_team_flag_code(team_name):
+    return TEAM_FLAG_CODE_MAP.get(normalise_team_name(team_name), "")
+
+
+def get_team_flag_url(team_name):
+    flag_code = get_team_flag_code(team_name)
+
+    if not flag_code:
+        return ""
+
+    return f"https://flagcdn.com/w40/{flag_code}.png"
+
+
+def team_name_with_flag(team_name):
+    flag = get_team_flag(team_name)
+
+    if flag:
+        return f"{flag} {team_name}"
+
+    return team_name
 
 
 class CompetitionGroup(models.Model):
-    """
-    A private prediction group, such as a family group or friends group.
-    Users join this group using an invite code.
-    """
-
     name = models.CharField(max_length=100)
-    invite_code = models.CharField(max_length=30, unique=True)
+    invite_code = models.CharField(max_length=20, unique=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="created_competition_groups",
+        related_name="created_prediction_groups",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        if not self.invite_code:
+            self.invite_code = uuid.uuid4().hex[:8].upper()
+
+        self.invite_code = self.invite_code.upper()
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
 
 class GroupMember(models.Model):
-    """
-    Connects a user to a competition group.
-    This allows the same user to join more than one private competition.
-    """
-
     ROLE_ADMIN = "admin"
     ROLE_MEMBER = "member"
 
@@ -47,7 +217,7 @@ class GroupMember(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="group_memberships",
+        related_name="prediction_group_memberships",
     )
     role = models.CharField(
         max_length=20,
@@ -58,19 +228,20 @@ class GroupMember(models.Model):
 
     class Meta:
         unique_together = ["group", "user"]
-        ordering = ["group", "user"]
+        ordering = ["group__name", "user__username"]
 
     def __str__(self):
         return f"{self.user.username} in {self.group.name}"
 
 
 class Match(models.Model):
-    """
-    A football match that users can predict.
+    STATUS_SCHEDULED = "scheduled"
+    STATUS_FINISHED = "finished"
 
-    This model supports both manual fixture/result entry and import from
-    a free fixture/result data source.
-    """
+    STATUS_CHOICES = [
+        (STATUS_SCHEDULED, "Scheduled"),
+        (STATUS_FINISHED, "Finished"),
+    ]
 
     STAGE_GROUP = "group"
     STAGE_ROUND_OF_32 = "round_of_32"
@@ -84,22 +255,10 @@ class Match(models.Model):
         (STAGE_GROUP, "Group Stage"),
         (STAGE_ROUND_OF_32, "Round of 32"),
         (STAGE_ROUND_OF_16, "Round of 16"),
-        (STAGE_QUARTER_FINAL, "Quarter-final"),
-        (STAGE_SEMI_FINAL, "Semi-final"),
-        (STAGE_THIRD_PLACE, "Third-place Play-off"),
+        (STAGE_QUARTER_FINAL, "Quarter Final"),
+        (STAGE_SEMI_FINAL, "Semi Final"),
+        (STAGE_THIRD_PLACE, "Third Place Play-off"),
         (STAGE_FINAL, "Final"),
-    ]
-
-    STATUS_SCHEDULED = "scheduled"
-    STATUS_FINISHED = "finished"
-    STATUS_POSTPONED = "postponed"
-    STATUS_CANCELLED = "cancelled"
-
-    STATUS_CHOICES = [
-        (STATUS_SCHEDULED, "Scheduled"),
-        (STATUS_FINISHED, "Finished"),
-        (STATUS_POSTPONED, "Postponed"),
-        (STATUS_CANCELLED, "Cancelled"),
     ]
 
     RESULT_HOME = "home"
@@ -107,142 +266,145 @@ class Match(models.Model):
     RESULT_AWAY = "away"
 
     RESULT_CHOICES = [
-        (RESULT_HOME, "Home team win"),
+        (RESULT_HOME, "Home win"),
         (RESULT_DRAW, "Draw"),
-        (RESULT_AWAY, "Away team win"),
+        (RESULT_AWAY, "Away win"),
     ]
 
     external_source = models.CharField(
-        max_length=50,
+        max_length=100,
         blank=True,
-        help_text="Optional source name for imported fixtures, e.g. openfootball.",
+        default="",
     )
     external_match_id = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Optional match ID from the external fixture/result source.",
+        default="",
     )
-
-    home_team = models.CharField(max_length=80)
-    away_team = models.CharField(max_length=80)
+    home_team = models.CharField(max_length=100)
+    away_team = models.CharField(max_length=100)
     kickoff_time = models.DateTimeField()
     stage = models.CharField(
         max_length=30,
         choices=STAGE_CHOICES,
         default=STAGE_GROUP,
     )
-
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default=STATUS_SCHEDULED,
     )
-
-    home_score = models.PositiveSmallIntegerField(
-        blank=True,
+    home_score = models.PositiveIntegerField(
         null=True,
-        help_text="Final home team score. Leave blank before the match is finished.",
-    )
-    away_score = models.PositiveSmallIntegerField(
         blank=True,
-        null=True,
-        help_text="Final away team score. Leave blank before the match is finished.",
     )
-
+    away_score = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
     result = models.CharField(
         max_length=10,
         choices=RESULT_CHOICES,
         blank=True,
         null=True,
-        help_text="Final outcome used for scoring predictions.",
     )
-
     last_synced_at = models.DateTimeField(
-        blank=True,
         null=True,
-        help_text="When this match was last updated from an external source.",
+        blank=True,
     )
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["kickoff_time", "home_team"]
-        verbose_name = "Match"
-        verbose_name_plural = "Matches"
-
-    def __str__(self):
-        return f"{self.home_team} vs {self.away_team}"
-
-    @property
-    def is_voting_open(self):
-        """
-        Voting is open only before kickoff and only for scheduled matches.
-        """
-        return (
-            self.status == self.STATUS_SCHEDULED
-            and timezone.now() < self.kickoff_time
-        )
+        constraints = [
+            models.UniqueConstraint(
+                fields=["external_source", "external_match_id"],
+                name="unique_external_match",
+            )
+        ]
 
     @property
     def has_result(self):
-        """
-        A match has a result once the result field contains home, draw or away.
-        """
-        return self.result is not None and self.result != ""
+        return self.result in {
+            self.RESULT_HOME,
+            self.RESULT_DRAW,
+            self.RESULT_AWAY,
+        }
 
     @property
     def score_display(self):
-        """
-        Returns a readable score if both scores are available.
-        """
         if self.home_score is None or self.away_score is None:
-            return "No score yet"
+            return "Not played"
 
-        return f"{self.home_score}-{self.away_score}"
+        return f"{self.home_score} - {self.away_score}"
 
-    def calculate_result_from_score(self):
-        """
-        Works out the match outcome from the stored final score.
+    @property
+    def home_team_flag(self):
+        return get_team_flag(self.home_team)
 
-        This is used for normal result-based prediction scoring:
-        - home score greater than away score = home win
-        - equal scores = draw
-        - away score greater than home score = away win
-        """
-        if self.home_score is None or self.away_score is None:
-            return None
+    @property
+    def away_team_flag(self):
+        return get_team_flag(self.away_team)
 
-        if self.home_score > self.away_score:
-            return self.RESULT_HOME
+    @property
+    def home_team_flag_code(self):
+        return get_team_flag_code(self.home_team)
 
-        if self.home_score < self.away_score:
-            return self.RESULT_AWAY
+    @property
+    def away_team_flag_code(self):
+        return get_team_flag_code(self.away_team)
 
-        return self.RESULT_DRAW
+    @property
+    def home_team_flag_url(self):
+        return get_team_flag_url(self.home_team)
+
+    @property
+    def away_team_flag_url(self):
+        return get_team_flag_url(self.away_team)
+
+    @property
+    def home_team_with_flag(self):
+        return team_name_with_flag(self.home_team)
+
+    @property
+    def away_team_with_flag(self):
+        return team_name_with_flag(self.away_team)
+
+    @property
+    def display_name_with_flags(self):
+        return f"{self.home_team_with_flag} vs {self.away_team_with_flag}"
+
+    @property
+    def display_name_plain(self):
+        return f"{self.home_team} vs {self.away_team}"
 
     def save(self, *args, **kwargs):
-        """
-        If the match is marked as finished and both scores are available,
-        automatically set the result from the final score.
-
-        The result can still be corrected manually in admin if needed.
-        """
-        if self.status == self.STATUS_FINISHED:
-            calculated_result = self.calculate_result_from_score()
-
-            if calculated_result is not None:
-                self.result = calculated_result
+        if (
+            self.status == self.STATUS_FINISHED
+            and self.home_score is not None
+            and self.away_score is not None
+        ):
+            if self.home_score > self.away_score:
+                self.result = self.RESULT_HOME
+            elif self.home_score < self.away_score:
+                self.result = self.RESULT_AWAY
+            else:
+                self.result = self.RESULT_DRAW
 
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.home_team} vs {self.away_team}"
 
 
 class Prediction(models.Model):
     """
     Stores one user's prediction for one match.
 
-    A prediction is no longer tied to a specific group because the same pick
-    should count across every league the user belongs to.
+    A user can belong to multiple leagues, but the prediction itself is only
+    stored once. The same prediction is then used when calculating every league
+    leaderboard that the user is part of.
     """
 
     PREDICTION_HOME = "home"
@@ -250,9 +412,9 @@ class Prediction(models.Model):
     PREDICTION_AWAY = "away"
 
     PREDICTION_CHOICES = [
-        (PREDICTION_HOME, "Home team win"),
+        (PREDICTION_HOME, "Home win"),
         (PREDICTION_DRAW, "Draw"),
-        (PREDICTION_AWAY, "Away team win"),
+        (PREDICTION_AWAY, "Away win"),
     ]
 
     user = models.ForeignKey(
@@ -270,7 +432,6 @@ class Prediction(models.Model):
         choices=PREDICTION_CHOICES,
     )
     points_awarded = models.PositiveIntegerField(default=0)
-
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -278,14 +439,7 @@ class Prediction(models.Model):
         unique_together = ["user", "match"]
         ordering = ["-submitted_at"]
 
-    def __str__(self):
-        return f"{self.user.username} predicted {self.prediction} for {self.match}"
-
     def calculate_points(self):
-        """
-        Returns 3 points if the prediction matches the match result.
-        Otherwise, returns 0.
-        """
         if not self.match.has_result:
             return 0
 
@@ -295,9 +449,9 @@ class Prediction(models.Model):
         return 0
 
     def save(self, *args, **kwargs):
-        """
-        Whenever a prediction is saved, points are recalculated based on
-        the current match result.
-        """
         self.points_awarded = self.calculate_points()
+
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.match} - {self.prediction}"

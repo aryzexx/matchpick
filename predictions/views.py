@@ -15,12 +15,29 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .forms import JoinLeagueForm, RegisterForm
-from .models import CompetitionGroup, GroupMember, Match, Prediction
+from .models import CompetitionGroup, GroupMember, Match, Prediction, get_team_flag
 
 
 User = get_user_model()
 
 PREDICTION_OPEN_HOURS = 48
+CLOSING_SOON_HOURS = 12
+
+MATCH_FILTER_ALL = "all"
+MATCH_FILTER_OPEN = "open"
+MATCH_FILTER_PENDING = "pending"
+MATCH_FILTER_CLOSING = "closing"
+MATCH_FILTER_FINISHED = "finished"
+MATCH_FILTER_UPCOMING = "upcoming"
+
+VALID_MATCH_FILTERS = {
+    MATCH_FILTER_ALL,
+    MATCH_FILTER_OPEN,
+    MATCH_FILTER_PENDING,
+    MATCH_FILTER_CLOSING,
+    MATCH_FILTER_FINISHED,
+    MATCH_FILTER_UPCOMING,
+}
 
 PLACEHOLDER_TERMS = [
     "tbc",
@@ -90,13 +107,63 @@ def get_prediction_availability(match):
     return True, "Voting is open."
 
 
+def format_time_remaining(target_time):
+    now = timezone.now()
+    remaining = target_time - now
+
+    if remaining.total_seconds() <= 0:
+        return "now"
+
+    total_minutes = int(remaining.total_seconds() // 60)
+    days = total_minutes // (24 * 60)
+    hours = (total_minutes % (24 * 60)) // 60
+    minutes = total_minutes % 60
+
+    if days > 0 and hours > 0:
+        return f"{days}d {hours}h"
+
+    if days > 0:
+        return f"{days}d"
+
+    if hours > 0 and minutes > 0:
+        return f"{hours}h {minutes}m"
+
+    if hours > 0:
+        return f"{hours}h"
+
+    return f"{minutes}m"
+
+
+def get_match_timing_label(match, voting_is_open):
+    now = timezone.now()
+
+    if match.status == Match.STATUS_FINISHED:
+        return "Finished"
+
+    if match.status != Match.STATUS_SCHEDULED:
+        return "Voting locked"
+
+    if not match_teams_are_confirmed(match):
+        return "Teams not confirmed"
+
+    if match.kickoff_time <= now:
+        return "Kickoff has passed"
+
+    voting_opens_at = match.kickoff_time - timedelta(hours=PREDICTION_OPEN_HOURS)
+
+    if voting_is_open:
+        return f"Voting closes in {format_time_remaining(match.kickoff_time)}"
+
+    if now < voting_opens_at:
+        return f"Voting opens in {format_time_remaining(voting_opens_at)}"
+
+    return "Voting locked"
+
+
 def voting_trends_are_visible(match):
     """
-    Voting trends are only shown once voting can no longer influence a user's pick.
-
-    This means trends are hidden before kickoff, even if the user has already
-    submitted a prediction. Once kickoff has passed, or the match is no longer
-    scheduled, the percentages can be shown.
+    Voting trends and league pick reveal are only shown once voting can no
+    longer influence a user's pick.
     """
     return match.status != Match.STATUS_SCHEDULED or timezone.now() >= match.kickoff_time
 
@@ -126,8 +193,8 @@ def get_prediction_trends_for_match(match):
     options = [
         {
             "key": Prediction.PREDICTION_HOME,
-            "label": f"{match.home_team} win",
-            "short_label": match.home_team,
+            "label": f"{match.home_team_with_flag} win",
+            "short_label": match.home_team_with_flag,
             "count": counts[Prediction.PREDICTION_HOME],
             "percentage": percentage(
                 counts[Prediction.PREDICTION_HOME],
@@ -146,8 +213,8 @@ def get_prediction_trends_for_match(match):
         },
         {
             "key": Prediction.PREDICTION_AWAY,
-            "label": f"{match.away_team} win",
-            "short_label": match.away_team,
+            "label": f"{match.away_team_with_flag} win",
+            "short_label": match.away_team_with_flag,
             "count": counts[Prediction.PREDICTION_AWAY],
             "percentage": percentage(
                 counts[Prediction.PREDICTION_AWAY],
@@ -175,11 +242,111 @@ def get_prediction_trends_for_match(match):
     }
 
 
+def build_league_pick_reveals_for_match(match, user_memberships, current_user):
+    """
+    Reveals how members of the user's own leagues voted after voting has locked.
+
+    Prediction rows are no longer tied to groups, so this function calculates a
+    group view by looking at each league's members and then checking each member's
+    one prediction for the match.
+    """
+    reveal_groups = []
+
+    for membership in user_memberships:
+        group = membership.group
+
+        group_memberships = list(
+            GroupMember.objects.filter(group=group)
+            .select_related("user")
+            .order_by("user__username")
+        )
+
+        user_ids = [group_membership.user_id for group_membership in group_memberships]
+
+        predictions = Prediction.objects.filter(
+            match=match,
+            user_id__in=user_ids,
+        ).select_related("user")
+
+        prediction_by_user_id = {
+            prediction.user_id: prediction for prediction in predictions
+        }
+
+        buckets = {
+            Prediction.PREDICTION_HOME: [],
+            Prediction.PREDICTION_DRAW: [],
+            Prediction.PREDICTION_AWAY: [],
+            "missed": [],
+        }
+
+        for group_membership in group_memberships:
+            member_user = group_membership.user
+            prediction = prediction_by_user_id.get(member_user.id)
+
+            member_row = {
+                "username": member_user.username,
+                "is_current_user": member_user.id == current_user.id,
+            }
+
+            if prediction:
+                buckets[prediction.prediction].append(member_row)
+            else:
+                buckets["missed"].append(member_row)
+
+        submitted_count = (
+            len(buckets[Prediction.PREDICTION_HOME])
+            + len(buckets[Prediction.PREDICTION_DRAW])
+            + len(buckets[Prediction.PREDICTION_AWAY])
+        )
+
+        reveal_groups.append(
+            {
+                "group": group,
+                "total_members": len(group_memberships),
+                "submitted_count": submitted_count,
+                "buckets": [
+                    {
+                        "key": Prediction.PREDICTION_HOME,
+                        "label": f"{match.home_team} win",
+                        "team": match.home_team,
+                        "flag_url": match.home_team_flag_url,
+                        "members": buckets[Prediction.PREDICTION_HOME],
+                    },
+                    {
+                        "key": Prediction.PREDICTION_DRAW,
+                        "label": "Draw",
+                        "team": "",
+                        "flag_url": "",
+                        "members": buckets[Prediction.PREDICTION_DRAW],
+                    },
+                    {
+                        "key": Prediction.PREDICTION_AWAY,
+                        "label": f"{match.away_team} win",
+                        "team": match.away_team,
+                        "flag_url": match.away_team_flag_url,
+                        "members": buckets[Prediction.PREDICTION_AWAY],
+                    },
+                    {
+                        "key": "missed",
+                        "label": "No pick submitted",
+                        "team": "",
+                        "flag_url": "",
+                        "members": buckets["missed"],
+                    },
+                ],
+            }
+        )
+
+    return reveal_groups
+
+
 def build_prediction_insights():
     trend_matches = []
     team_support = {}
     favourite_candidates = []
     draw_candidates = []
+    crowd_right_candidates = []
+    crowd_wrong_candidates = []
 
     matches = Match.objects.all().order_by("-kickoff_time", "home_team")
 
@@ -199,6 +366,18 @@ def build_prediction_insights():
 
         trend_matches.append(trend_match)
 
+        if match.has_result and trends["top_option"]:
+            crowd_item = {
+                "match": match,
+                "top_option": trends["top_option"],
+                "trends": trends,
+            }
+
+            if trends["top_option"]["key"] == match.result:
+                crowd_right_candidates.append(crowd_item)
+            else:
+                crowd_wrong_candidates.append(crowd_item)
+
         for option in trends["options"]:
             if option["count"] <= 0:
                 continue
@@ -213,6 +392,8 @@ def build_prediction_insights():
                         "match": match,
                         "label": option["label"],
                         "team": match.home_team,
+                        "team_flag": match.home_team_flag,
+                        "team_with_flag": match.home_team_with_flag,
                         "count": option["count"],
                         "percentage": option["percentage"],
                     }
@@ -228,6 +409,8 @@ def build_prediction_insights():
                         "match": match,
                         "label": option["label"],
                         "team": match.away_team,
+                        "team_flag": match.away_team_flag,
+                        "team_with_flag": match.away_team_with_flag,
                         "count": option["count"],
                         "percentage": option["percentage"],
                     }
@@ -237,7 +420,7 @@ def build_prediction_insights():
                 draw_candidates.append(
                     {
                         "match": match,
-                        "label": f"{match.home_team} vs {match.away_team}",
+                        "label": match.display_name_with_flags,
                         "count": option["count"],
                         "percentage": option["percentage"],
                     }
@@ -253,6 +436,8 @@ def build_prediction_insights():
 
         most_backed_team = {
             "team": team_name,
+            "team_flag": get_team_flag(team_name),
+            "team_with_flag": f"{get_team_flag(team_name)} {team_name}".strip(),
             "count": support_count,
         }
 
@@ -310,6 +495,28 @@ def build_prediction_insights():
             ),
         )[0]
 
+    crowd_right = None
+
+    if crowd_right_candidates:
+        crowd_right = sorted(
+            crowd_right_candidates,
+            key=lambda item: (
+                -item["top_option"]["percentage"],
+                -item["trends"]["total_predictions"],
+            ),
+        )[0]
+
+    crowd_wrong = None
+
+    if crowd_wrong_candidates:
+        crowd_wrong = sorted(
+            crowd_wrong_candidates,
+            key=lambda item: (
+                -item["top_option"]["percentage"],
+                -item["trends"]["total_predictions"],
+            ),
+        )[0]
+
     return {
         "trend_matches": trend_matches,
         "recent_trend_matches": trend_matches[:5],
@@ -321,6 +528,8 @@ def build_prediction_insights():
         "biggest_favourite": biggest_favourite,
         "most_divided_match": most_divided_match,
         "most_predicted_draw": most_predicted_draw,
+        "crowd_right": crowd_right,
+        "crowd_wrong": crowd_wrong,
     }
 
 
@@ -341,6 +550,27 @@ def get_global_predictions_for_user(user, matches_list=None):
     return {
         prediction.match_id: prediction
         for prediction in predictions.order_by("match_id")
+    }
+
+
+def build_tie_summary(tied_rows, value, value_label):
+    if not tied_rows:
+        return None
+
+    usernames = [row["username"] for row in tied_rows]
+
+    if len(usernames) <= 3:
+        display_names = ", ".join(usernames)
+    else:
+        display_names = f"{usernames[0]} + {len(usernames) - 1} others"
+
+    return {
+        "display_names": display_names,
+        "usernames": usernames,
+        "count": len(usernames),
+        "value": value,
+        "value_label": value_label,
+        "has_tie": len(usernames) > 1,
     }
 
 
@@ -426,10 +656,23 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
     top_scorer = None
     most_accurate = None
     fewest_missed = None
+    top_scorer_summary = None
+    most_accurate_summary = None
+    fewest_missed_summary = None
 
     if leaderboard_rows:
         highest_points = leaderboard_rows[0]["total_points"]
         top_scorer = leaderboard_rows[0]
+
+        top_scorer_rows = [
+            row for row in leaderboard_rows if row["total_points"] == highest_points
+        ]
+
+        top_scorer_summary = build_tie_summary(
+            tied_rows=top_scorer_rows,
+            value=highest_points,
+            value_label="points",
+        )
 
         rows_with_scored_predictions = [
             row for row in leaderboard_rows if row["scored_predictions"] > 0
@@ -442,23 +685,56 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
                 1,
             )
 
-            most_accurate = sorted(
-                rows_with_scored_predictions,
+            best_accuracy_value = max(
+                row["accuracy"] for row in rows_with_scored_predictions
+            )
+
+            most_accurate_rows = [
+                row
+                for row in rows_with_scored_predictions
+                if row["accuracy"] == best_accuracy_value
+            ]
+
+            most_accurate_rows.sort(
                 key=lambda row: (
-                    -row["accuracy"],
                     -row["correct_predictions"],
                     row["username"].lower(),
-                ),
-            )[0]
+                )
+            )
 
-        fewest_missed = sorted(
-            leaderboard_rows,
+            most_accurate = most_accurate_rows[0]
+
+            most_accurate_summary = build_tie_summary(
+                tied_rows=most_accurate_rows,
+                value=f"{best_accuracy_value}%",
+                value_label="accuracy",
+            )
+
+        fewest_missed_value = min(
+            row["missed_finished_matches"] for row in leaderboard_rows
+        )
+
+        fewest_missed_rows = [
+            row
+            for row in leaderboard_rows
+            if row["missed_finished_matches"] == fewest_missed_value
+        ]
+
+        fewest_missed_rows.sort(
             key=lambda row: (
-                row["missed_finished_matches"],
                 -row["total_points"],
+                -row["correct_predictions"],
                 row["username"].lower(),
-            ),
-        )[0]
+            )
+        )
+
+        fewest_missed = fewest_missed_rows[0]
+
+        fewest_missed_summary = build_tie_summary(
+            tied_rows=fewest_missed_rows,
+            value=fewest_missed_value,
+            value_label="missed picks",
+        )
 
     total_predictions = sum(row["predictions_made"] for row in leaderboard_rows)
 
@@ -472,6 +748,9 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
         "top_scorer": top_scorer,
         "most_accurate": most_accurate,
         "fewest_missed": fewest_missed,
+        "top_scorer_summary": top_scorer_summary,
+        "most_accurate_summary": most_accurate_summary,
+        "fewest_missed_summary": fewest_missed_summary,
     }
 
 
@@ -486,6 +765,58 @@ def get_safe_redirect_url(request, fallback_url_name="matches"):
         return redirect_target
 
     return reverse(fallback_url_name)
+
+
+def filter_matches(matches_list, selected_filter):
+    if selected_filter == MATCH_FILTER_OPEN:
+        return [match for match in matches_list if match.voting_is_open]
+
+    if selected_filter == MATCH_FILTER_PENDING:
+        return [
+            match
+            for match in matches_list
+            if match.voting_is_open and not match.user_prediction
+        ]
+
+    if selected_filter == MATCH_FILTER_CLOSING:
+        return [match for match in matches_list if match.is_closing_soon]
+
+    if selected_filter == MATCH_FILTER_FINISHED:
+        return [match for match in matches_list if match.status == Match.STATUS_FINISHED]
+
+    if selected_filter == MATCH_FILTER_UPCOMING:
+        return [
+            match
+            for match in matches_list
+            if match.status == Match.STATUS_SCHEDULED and not match.voting_is_open
+        ]
+
+    return matches_list
+
+
+def build_match_filter_tabs(matches_list, selected_filter):
+    filter_definitions = [
+        (MATCH_FILTER_ALL, "All"),
+        (MATCH_FILTER_OPEN, "Open Now"),
+        (MATCH_FILTER_PENDING, "My Pending Picks"),
+        (MATCH_FILTER_CLOSING, "Closing Soon"),
+        (MATCH_FILTER_FINISHED, "Finished"),
+        (MATCH_FILTER_UPCOMING, "Upcoming"),
+    ]
+
+    tabs = []
+
+    for key, label in filter_definitions:
+        tabs.append(
+            {
+                "key": key,
+                "label": label,
+                "count": len(filter_matches(matches_list, key)),
+                "is_active": selected_filter == key,
+            }
+        )
+
+    return tabs
 
 
 def home(request):
@@ -616,7 +947,13 @@ def sync_latest_results(request):
 
 @login_required
 def matches(request):
-    user_memberships = get_user_memberships(request.user)
+    user_memberships = list(get_user_memberships(request.user))
+    primary_membership = user_memberships[0] if user_memberships else None
+
+    selected_filter = request.GET.get("filter", MATCH_FILTER_ALL)
+
+    if selected_filter not in VALID_MATCH_FILTERS:
+        selected_filter = MATCH_FILTER_ALL
 
     matches_list = list(Match.objects.all().order_by("kickoff_time", "home_team"))
 
@@ -626,6 +963,7 @@ def matches(request):
     )
 
     open_matches_count = 0
+    closing_soon_matches = []
 
     for match in matches_list:
         match.user_prediction = predictions_by_match_id.get(match.id)
@@ -635,14 +973,33 @@ def matches(request):
         match.voting_is_open = voting_is_open
         match.voting_message = voting_message
         match.trends_visible = voting_trends_are_visible(match)
+        match.timing_label = get_match_timing_label(match, voting_is_open)
+
+        match.is_closing_soon = (
+            voting_is_open
+            and match.kickoff_time
+            <= timezone.now() + timedelta(hours=CLOSING_SOON_HOURS)
+        )
 
         if match.trends_visible:
             match.prediction_trends = get_prediction_trends_for_match(match)
+            match.league_pick_reveals = build_league_pick_reveals_for_match(
+                match=match,
+                user_memberships=user_memberships,
+                current_user=request.user,
+            )
         else:
             match.prediction_trends = None
+            match.league_pick_reveals = []
 
         if voting_is_open:
             open_matches_count += 1
+
+        if match.is_closing_soon:
+            closing_soon_matches.append(match)
+
+    filtered_matches = filter_matches(matches_list, selected_filter)
+    filter_tabs = build_match_filter_tabs(matches_list, selected_filter)
 
     open_match_ids = [match.id for match in matches_list if match.voting_is_open]
 
@@ -668,8 +1025,12 @@ def matches(request):
 
     context = {
         "user_memberships": user_memberships,
-        "primary_membership": user_memberships.first(),
-        "matches": matches_list,
+        "primary_membership": primary_membership,
+        "matches": filtered_matches,
+        "all_matches_count": len(matches_list),
+        "selected_filter": selected_filter,
+        "filter_tabs": filter_tabs,
+        "closing_soon_matches": closing_soon_matches[:4],
         "total_matches": len(matches_list),
         "scheduled_matches": Match.objects.filter(
             status=Match.STATUS_SCHEDULED
@@ -759,11 +1120,9 @@ def submit_prediction(request, match_id):
     )
 
     if created:
-        success_message = f"Prediction saved for {match.home_team} vs {match.away_team}."
+        success_message = f"Prediction saved for {match.display_name_with_flags}."
     else:
-        success_message = (
-            f"Prediction updated for {match.home_team} vs {match.away_team}."
-        )
+        success_message = f"Prediction updated for {match.display_name_with_flags}."
 
     if is_ajax:
         return JsonResponse(

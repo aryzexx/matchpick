@@ -1,4 +1,5 @@
 {% extends "predictions/base.html" %}
+{% load team_flags %}
 
 {% block content %}
 <section class="page-heading">
@@ -40,7 +41,9 @@
         <span class="summary-label">Most Backed Team</span>
 
         {% if most_backed_team %}
-            <strong class="summary-text-value">{{ most_backed_team.team }}</strong>
+            <strong class="summary-text-value">
+                {% team_with_flag most_backed_team.team %}
+            </strong>
         {% else %}
             <strong>—</strong>
         {% endif %}
@@ -51,7 +54,9 @@
 
         {% if most_divided_match %}
             <strong class="summary-text-value">
-                {{ most_divided_match.match.home_team }} vs {{ most_divided_match.match.away_team }}
+                {% team_with_flag most_divided_match.match.home_team %}
+                <span class="mini-versus">vs</span>
+                {% team_with_flag most_divided_match.match.away_team %}
             </strong>
         {% else %}
             <strong>—</strong>
@@ -64,7 +69,7 @@
         <span>Most Backed Team</span>
 
         {% if most_backed_team %}
-            <strong>{{ most_backed_team.team }}</strong>
+            <strong>{% team_with_flag most_backed_team.team %}</strong>
             <p>{{ most_backed_team.count }} win pick{% if most_backed_team.count != 1 %}s{% endif %}</p>
         {% else %}
             <strong>—</strong>
@@ -76,8 +81,8 @@
         <span>Biggest Favourite</span>
 
         {% if biggest_favourite %}
-            <strong>{{ biggest_favourite.team }}</strong>
-            <p>{{ biggest_favourite.percentage }}% backed {{ biggest_favourite.label }}</p>
+            <strong>{% team_with_flag biggest_favourite.team %}</strong>
+            <p>{{ biggest_favourite.percentage }}% backed {{ biggest_favourite.team }} to win</p>
         {% else %}
             <strong>—</strong>
             <p>No favourite trend yet.</p>
@@ -89,11 +94,68 @@
 
         {% if most_predicted_draw %}
             <strong>{{ most_predicted_draw.percentage }}%</strong>
-            <p>{{ most_predicted_draw.label }}</p>
+
+            <p>
+                {% team_with_flag most_predicted_draw.match.home_team %}
+                <span class="mini-versus">vs</span>
+                {% team_with_flag most_predicted_draw.match.away_team %}
+            </p>
         {% else %}
             <strong>—</strong>
             <p>No draw trend yet.</p>
         {% endif %}
+    </article>
+</section>
+
+<section class="insight-grid">
+    <article class="insight-card">
+        <span>Crowd Was Right</span>
+
+        {% if crowd_right %}
+            <strong>
+                {% team_with_flag crowd_right.match.home_team %}
+                <span class="mini-versus">vs</span>
+                {% team_with_flag crowd_right.match.away_team %}
+            </strong>
+
+            <p>
+                The most popular pick was correct:
+                {{ crowd_right.top_option.percentage }}% backed it.
+            </p>
+        {% else %}
+            <strong>—</strong>
+            <p>No finished match where the crowd favourite was right yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="insight-card">
+        <span>Crowd Was Wrong</span>
+
+        {% if crowd_wrong %}
+            <strong>
+                {% team_with_flag crowd_wrong.match.home_team %}
+                <span class="mini-versus">vs</span>
+                {% team_with_flag crowd_wrong.match.away_team %}
+            </strong>
+
+            <p>
+                The most popular pick lost:
+                {{ crowd_wrong.top_option.percentage }}% backed it.
+            </p>
+        {% else %}
+            <strong>—</strong>
+            <p>No finished match where the crowd favourite was wrong yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="insight-card">
+        <span>Insight Rule</span>
+
+        <strong>After lock only</strong>
+
+        <p>
+            Prediction trends appear only once voting is closed, keeping live picks fair.
+        </p>
     </article>
 </section>
 
@@ -116,7 +178,11 @@
                         <div>
                             <p class="match-stage">{{ item.match.get_stage_display }}</p>
 
-                            <h3>{{ item.match.home_team }} vs {{ item.match.away_team }}</h3>
+                            <h3>
+                                {% team_with_flag item.match.home_team %}
+                                <span class="mini-versus">vs</span>
+                                {% team_with_flag item.match.away_team %}
+                            </h3>
 
                             <p>
                                 Kickoff: {{ item.match.kickoff_time|date:"D, d M Y H:i" }}
@@ -132,7 +198,18 @@
                         {% for option in item.trends.options %}
                             <div class="trend-row">
                                 <div class="trend-row-top">
-                                    <span>{{ option.label }}</span>
+                                    <span>
+                                        {% if option.key == 'home' %}
+                                            {% team_with_flag item.match.home_team %}
+                                            win
+                                        {% elif option.key == 'away' %}
+                                            {% team_with_flag item.match.away_team %}
+                                            win
+                                        {% else %}
+                                            Draw
+                                        {% endif %}
+                                    </span>
+
                                     <strong>{{ option.percentage }}%</strong>
                                 </div>
 
@@ -161,7 +238,7 @@
         </div>
     </section>
 {% else %}
-    <section class="glass-card">
+    <section class="glass-card elevated-card">
         <h2>No insights available yet</h2>
 
         <p>
