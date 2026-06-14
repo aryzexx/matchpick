@@ -332,28 +332,32 @@
                                 </div>
                             </div>
                         {% else %}
-                            <div class="locked-panel">
-                                {% if match.user_prediction %}
-                                    <p>
-                                        Your pick:
-                                        <strong>{{ match.user_prediction.get_prediction_display }}</strong>
-                                    </p>
+                            <div class="locked-panel compact-locked-panel">
+                                <div class="locked-summary-row">
+                                    <div>
+                                        {% if match.user_prediction %}
+                                            <p>
+                                                Your pick:
+                                                <strong>{{ match.user_prediction.get_prediction_display }}</strong>
+                                            </p>
 
-                                    {% if match.has_result %}
-                                        <p>
-                                            Points awarded:
-                                            <strong>{{ match.user_prediction.points_awarded }}</strong>
-                                        </p>
-                                    {% endif %}
-                                {% else %}
-                                    <p>No prediction submitted for this match.</p>
-                                {% endif %}
+                                            {% if match.has_result %}
+                                                <p>
+                                                    Points awarded:
+                                                    <strong>{{ match.user_prediction.points_awarded }}</strong>
+                                                </p>
+                                            {% endif %}
+                                        {% else %}
+                                            <p>No prediction submitted for this match.</p>
+                                        {% endif %}
+                                    </div>
 
-                                <p class="locked-reason">{{ match.voting_message }}</p>
+                                    <p class="locked-reason">{{ match.voting_message }}</p>
+                                </div>
 
                                 {% if match.trends_visible %}
                                     {% if match.prediction_trends.total_predictions > 0 %}
-                                        <div class="trend-panel">
+                                        <div class="trend-panel compact-trend-panel">
                                             <div class="trend-panel-heading">
                                                 <div>
                                                     <p class="eyebrow">Prediction trends</p>
@@ -406,65 +410,67 @@
                                     {% endif %}
 
                                     {% if match.league_pick_reveals %}
-                                        <div class="league-picks-panel">
-                                            <div class="league-picks-heading">
-                                                <div>
-                                                    <p class="eyebrow">League reveal</p>
+                                        <details class="league-picks-disclosure">
+                                            <summary>
+                                                <span>
+                                                    Who picked what
+                                                </span>
 
-                                                    <h3>Who picked what</h3>
-                                                </div>
+                                                <small>
+                                                    Tap to reveal league picks
+                                                </small>
+                                            </summary>
 
-                                                <span>Visible after lock</span>
-                                            </div>
+                                            <div class="league-picks-panel">
+                                                <div class="league-reveal-grid">
+                                                    {% for reveal in match.league_pick_reveals %}
+                                                        <article class="league-reveal-card">
+                                                            <div class="league-reveal-title">
+                                                                <div>
+                                                                    <h4>{{ reveal.group.name }}</h4>
 
-                                            <div class="league-reveal-grid">
-                                                {% for reveal in match.league_pick_reveals %}
-                                                    <article class="league-reveal-card">
-                                                        <div class="league-reveal-title">
-                                                            <div>
-                                                                <h4>{{ reveal.group.name }}</h4>
-
-                                                                <p>
-                                                                    {{ reveal.submitted_count }} of {{ reveal.total_members }} members submitted a pick.
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                        <div class="league-pick-buckets">
-                                                            {% for bucket in reveal.buckets %}
-                                                                <div class="league-pick-bucket bucket-{{ bucket.key }}">
-                                                                    <div class="bucket-label-row">
-                                                                        <strong>
-                                                                            {% if bucket.flag_url %}
-                                                                                <img class="team-flag-img" src="{{ bucket.flag_url }}" alt="{{ bucket.team }} flag" loading="lazy">
-                                                                            {% endif %}
-                                                                            {{ bucket.label }}
-                                                                        </strong>
-
-                                                                        <span>{{ bucket.members|length }}</span>
-                                                                    </div>
-
-                                                                    {% if bucket.members %}
-                                                                        <div class="member-chip-list">
-                                                                            {% for member in bucket.members %}
-                                                                                <span class="member-chip {% if member.is_current_user %}you{% endif %}">
-                                                                                    {{ member.username }}
-                                                                                    {% if member.is_current_user %}
-                                                                                        <small>You</small>
-                                                                                    {% endif %}
-                                                                                </span>
-                                                                            {% endfor %}
-                                                                        </div>
-                                                                    {% else %}
-                                                                        <p class="empty-bucket-text">No one</p>
-                                                                    {% endif %}
+                                                                    <p>
+                                                                        {{ reveal.submitted_count }} of {{ reveal.total_members }} members submitted a pick.
+                                                                    </p>
                                                                 </div>
-                                                            {% endfor %}
-                                                        </div>
-                                                    </article>
-                                                {% endfor %}
+                                                            </div>
+
+                                                            <div class="league-pick-buckets">
+                                                                {% for bucket in reveal.buckets %}
+                                                                    <div class="league-pick-bucket bucket-{{ bucket.key }}">
+                                                                        <div class="bucket-label-row">
+                                                                            <strong>
+                                                                                {% if bucket.flag_url %}
+                                                                                    <img class="team-flag-img" src="{{ bucket.flag_url }}" alt="{{ bucket.team }} flag" loading="lazy">
+                                                                                {% endif %}
+                                                                                {{ bucket.label }}
+                                                                            </strong>
+
+                                                                            <span>{{ bucket.members|length }}</span>
+                                                                        </div>
+
+                                                                        {% if bucket.members %}
+                                                                            <div class="member-chip-list">
+                                                                                {% for member in bucket.members %}
+                                                                                    <span class="member-chip {% if member.is_current_user %}you{% endif %}">
+                                                                                        {{ member.username }}
+                                                                                        {% if member.is_current_user %}
+                                                                                            <small>You</small>
+                                                                                        {% endif %}
+                                                                                    </span>
+                                                                                {% endfor %}
+                                                                            </div>
+                                                                        {% else %}
+                                                                            <p class="empty-bucket-text">No one</p>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                {% endfor %}
+                                                            </div>
+                                                        </article>
+                                                    {% endfor %}
+                                                </div>
                                             </div>
-                                        </div>
+                                        </details>
                                     {% endif %}
                                 {% else %}
                                     <div class="trend-locked-note">
