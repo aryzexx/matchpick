@@ -379,18 +379,31 @@ class Match(models.Model):
     def display_name_plain(self):
         return f"{self.home_team} vs {self.away_team}"
 
+    def calculate_result_from_score(self):
+        """
+        Calculates the match result from the stored score.
+
+        This method is used by the result sync management command, so it must
+        remain available even though the model also auto-calculates the result
+        when a finished match is saved.
+        """
+        if self.home_score is None or self.away_score is None:
+            return None
+
+        if self.home_score > self.away_score:
+            return self.RESULT_HOME
+
+        if self.home_score < self.away_score:
+            return self.RESULT_AWAY
+
+        return self.RESULT_DRAW
+
     def save(self, *args, **kwargs):
-        if (
-            self.status == self.STATUS_FINISHED
-            and self.home_score is not None
-            and self.away_score is not None
-        ):
-            if self.home_score > self.away_score:
-                self.result = self.RESULT_HOME
-            elif self.home_score < self.away_score:
-                self.result = self.RESULT_AWAY
-            else:
-                self.result = self.RESULT_DRAW
+        if self.status == self.STATUS_FINISHED:
+            calculated_result = self.calculate_result_from_score()
+
+            if calculated_result:
+                self.result = calculated_result
 
         super().save(*args, **kwargs)
 
