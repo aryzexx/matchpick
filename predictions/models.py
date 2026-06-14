@@ -68,7 +68,7 @@ class Match(models.Model):
     """
     A football match that users can predict.
 
-    This model supports both manual fixture/result entry and future import from
+    This model supports both manual fixture/result entry and import from
     a free fixture/result data source.
     """
 
@@ -239,7 +239,10 @@ class Match(models.Model):
 
 class Prediction(models.Model):
     """
-    Stores one user's prediction for one match inside one competition group.
+    Stores one user's prediction for one match.
+
+    A prediction is no longer tied to a specific group because the same pick
+    should count across every league the user belongs to.
     """
 
     PREDICTION_HOME = "home"
@@ -254,11 +257,6 @@ class Prediction(models.Model):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="predictions",
-    )
-    group = models.ForeignKey(
-        CompetitionGroup,
         on_delete=models.CASCADE,
         related_name="predictions",
     )
@@ -277,7 +275,7 @@ class Prediction(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ["user", "group", "match"]
+        unique_together = ["user", "match"]
         ordering = ["-submitted_at"]
 
     def __str__(self):

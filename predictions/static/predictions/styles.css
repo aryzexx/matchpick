@@ -1229,3 +1229,137 @@ input {
         flex-direction: column;
     }
 }
+
+/* Prediction trends and insights */
+
+.trend-locked-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #eef2f7;
+    color: var(--muted-dark);
+    font-weight: 850;
+    font-size: 14px;
+}
+
+.trend-panel {
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: 22px;
+    background: white;
+    border: 1px solid var(--line);
+}
+
+.trend-panel-heading,
+.match-trend-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.trend-panel-heading h3,
+.match-trend-heading h3 {
+    margin: 0;
+    letter-spacing: -0.04em;
+}
+
+.trend-total {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    border-radius: 999px;
+    padding: 7px 10px;
+    color: #166534;
+    background: var(--primary-soft);
+    font-size: 13px;
+    font-weight: 950;
+}
+
+.trend-list {
+    display: grid;
+    gap: 14px;
+}
+
+.trend-row {
+    display: grid;
+    gap: 7px;
+}
+
+.trend-row-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: center;
+    color: var(--text);
+    font-weight: 900;
+}
+
+.trend-row-top strong {
+    font-size: 15px;
+}
+
+.trend-track {
+    height: 11px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e9edf3;
+}
+
+.trend-fill {
+    width: var(--trend-width);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--primary), var(--blue));
+}
+
+.trend-count {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.summary-text-value {
+    font-size: 22px !important;
+    line-height: 1.1;
+    letter-spacing: -0.05em !important;
+}
+
+.trend-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.match-trend-card {
+    padding: 20px;
+    border-radius: 22px;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+}
+
+.match-trend-heading p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.trend-footnote {
+    margin: 16px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted-dark);
+    font-weight: 850;
+}
+
+@media (max-width: 820px) {
+    .trend-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .trend-panel-heading,
+    .match-trend-heading {
+        flex-direction: column;
+    }
+}

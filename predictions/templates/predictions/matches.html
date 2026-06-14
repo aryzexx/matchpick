@@ -236,6 +236,10 @@
                         </form>
 
                         <div class="prediction-inline-message" aria-live="polite"></div>
+
+                        <div class="trend-locked-note">
+                            Prediction trends will appear after voting closes for this match.
+                        </div>
                     </div>
                 {% else %}
                     <div class="locked-panel">
@@ -256,6 +260,50 @@
                         {% endif %}
 
                         <p class="locked-reason">{{ match.voting_message }}</p>
+
+                        {% if match.trends_visible %}
+                            {% if match.prediction_trends.total_predictions > 0 %}
+                                <div class="trend-panel">
+                                    <div class="trend-panel-heading">
+                                        <div>
+                                            <p class="eyebrow">Prediction trends</p>
+                                            <h3>Voting split after lock</h3>
+                                        </div>
+
+                                        <span class="trend-total">
+                                            {{ match.prediction_trends.total_predictions }} picks
+                                        </span>
+                                    </div>
+
+                                    <div class="trend-list">
+                                        {% for option in match.prediction_trends.options %}
+                                            <div class="trend-row">
+                                                <div class="trend-row-top">
+                                                    <span>{{ option.label }}</span>
+                                                    <strong>{{ option.percentage }}%</strong>
+                                                </div>
+
+                                                <div class="trend-track">
+                                                    <div class="trend-fill" style="--trend-width: {{ option.percentage }}%;"></div>
+                                                </div>
+
+                                                <span class="trend-count">
+                                                    {{ option.count }} pick{% if option.count != 1 %}s{% endif %}
+                                                </span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="trend-locked-note">
+                                    Voting has closed, but no predictions were submitted for this match.
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="trend-locked-note">
+                                Prediction trends are hidden until kickoff so they cannot influence voting.
+                            </div>
+                        {% endif %}
                     </div>
                 {% endif %}
             </article>

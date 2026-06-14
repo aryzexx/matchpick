@@ -90,6 +90,240 @@ def get_prediction_availability(match):
     return True, "Voting is open."
 
 
+def voting_trends_are_visible(match):
+    """
+    Voting trends are only shown once voting can no longer influence a user's pick.
+
+    This means trends are hidden before kickoff, even if the user has already
+    submitted a prediction. Once kickoff has passed, or the match is no longer
+    scheduled, the percentages can be shown.
+    """
+    return match.status != Match.STATUS_SCHEDULED or timezone.now() >= match.kickoff_time
+
+
+def percentage(count, total):
+    if total <= 0:
+        return 0
+
+    return round((count / total) * 100)
+
+
+def get_prediction_trends_for_match(match):
+    predictions = Prediction.objects.filter(match=match)
+
+    counts = {
+        Prediction.PREDICTION_HOME: 0,
+        Prediction.PREDICTION_DRAW: 0,
+        Prediction.PREDICTION_AWAY: 0,
+    }
+
+    for prediction in predictions:
+        if prediction.prediction in counts:
+            counts[prediction.prediction] += 1
+
+    total_predictions = sum(counts.values())
+
+    options = [
+        {
+            "key": Prediction.PREDICTION_HOME,
+            "label": f"{match.home_team} win",
+            "short_label": match.home_team,
+            "count": counts[Prediction.PREDICTION_HOME],
+            "percentage": percentage(
+                counts[Prediction.PREDICTION_HOME],
+                total_predictions,
+            ),
+        },
+        {
+            "key": Prediction.PREDICTION_DRAW,
+            "label": "Draw",
+            "short_label": "Draw",
+            "count": counts[Prediction.PREDICTION_DRAW],
+            "percentage": percentage(
+                counts[Prediction.PREDICTION_DRAW],
+                total_predictions,
+            ),
+        },
+        {
+            "key": Prediction.PREDICTION_AWAY,
+            "label": f"{match.away_team} win",
+            "short_label": match.away_team,
+            "count": counts[Prediction.PREDICTION_AWAY],
+            "percentage": percentage(
+                counts[Prediction.PREDICTION_AWAY],
+                total_predictions,
+            ),
+        },
+    ]
+
+    top_option = None
+
+    if total_predictions > 0:
+        top_option = sorted(
+            options,
+            key=lambda option: (
+                -option["count"],
+                -option["percentage"],
+                option["label"],
+            ),
+        )[0]
+
+    return {
+        "total_predictions": total_predictions,
+        "options": options,
+        "top_option": top_option,
+    }
+
+
+def build_prediction_insights():
+    trend_matches = []
+    team_support = {}
+    favourite_candidates = []
+    draw_candidates = []
+
+    matches = Match.objects.all().order_by("-kickoff_time", "home_team")
+
+    for match in matches:
+        if not voting_trends_are_visible(match):
+            continue
+
+        trends = get_prediction_trends_for_match(match)
+
+        if trends["total_predictions"] == 0:
+            continue
+
+        trend_match = {
+            "match": match,
+            "trends": trends,
+        }
+
+        trend_matches.append(trend_match)
+
+        for option in trends["options"]:
+            if option["count"] <= 0:
+                continue
+
+            if option["key"] == Prediction.PREDICTION_HOME:
+                team_support[match.home_team] = (
+                    team_support.get(match.home_team, 0) + option["count"]
+                )
+
+                favourite_candidates.append(
+                    {
+                        "match": match,
+                        "label": option["label"],
+                        "team": match.home_team,
+                        "count": option["count"],
+                        "percentage": option["percentage"],
+                    }
+                )
+
+            elif option["key"] == Prediction.PREDICTION_AWAY:
+                team_support[match.away_team] = (
+                    team_support.get(match.away_team, 0) + option["count"]
+                )
+
+                favourite_candidates.append(
+                    {
+                        "match": match,
+                        "label": option["label"],
+                        "team": match.away_team,
+                        "count": option["count"],
+                        "percentage": option["percentage"],
+                    }
+                )
+
+            elif option["key"] == Prediction.PREDICTION_DRAW:
+                draw_candidates.append(
+                    {
+                        "match": match,
+                        "label": f"{match.home_team} vs {match.away_team}",
+                        "count": option["count"],
+                        "percentage": option["percentage"],
+                    }
+                )
+
+    most_backed_team = None
+
+    if team_support:
+        team_name, support_count = sorted(
+            team_support.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[0]
+
+        most_backed_team = {
+            "team": team_name,
+            "count": support_count,
+        }
+
+    biggest_favourite = None
+
+    if favourite_candidates:
+        biggest_favourite = sorted(
+            favourite_candidates,
+            key=lambda item: (
+                -item["percentage"],
+                -item["count"],
+                item["team"],
+            ),
+        )[0]
+
+    most_predicted_draw = None
+
+    if draw_candidates:
+        most_predicted_draw = sorted(
+            draw_candidates,
+            key=lambda item: (
+                -item["percentage"],
+                -item["count"],
+                item["label"],
+            ),
+        )[0]
+
+    most_divided_match = None
+    divided_candidates = []
+
+    for trend_match in trend_matches:
+        trends = trend_match["trends"]
+
+        if trends["total_predictions"] < 2:
+            continue
+
+        percentages = [option["percentage"] for option in trends["options"]]
+        spread = max(percentages) - min(percentages)
+
+        divided_candidates.append(
+            {
+                "match": trend_match["match"],
+                "trends": trends,
+                "spread": spread,
+            }
+        )
+
+    if divided_candidates:
+        most_divided_match = sorted(
+            divided_candidates,
+            key=lambda item: (
+                item["spread"],
+                -item["trends"]["total_predictions"],
+                item["match"].kickoff_time,
+            ),
+        )[0]
+
+    return {
+        "trend_matches": trend_matches,
+        "recent_trend_matches": trend_matches[:5],
+        "trend_match_count": len(trend_matches),
+        "total_locked_predictions": sum(
+            item["trends"]["total_predictions"] for item in trend_matches
+        ),
+        "most_backed_team": most_backed_team,
+        "biggest_favourite": biggest_favourite,
+        "most_divided_match": most_divided_match,
+        "most_predicted_draw": most_predicted_draw,
+    }
+
+
 def get_user_memberships(user):
     return (
         GroupMember.objects.filter(user=user)
@@ -104,15 +338,10 @@ def get_global_predictions_for_user(user, matches_list=None):
     if matches_list is not None:
         predictions = predictions.filter(match__in=matches_list)
 
-    predictions = predictions.order_by("match_id", "-id")
-
-    predictions_by_match_id = {}
-
-    for prediction in predictions:
-        if prediction.match_id not in predictions_by_match_id:
-            predictions_by_match_id[prediction.match_id] = prediction
-
-    return predictions_by_match_id
+    return {
+        prediction.match_id: prediction
+        for prediction in predictions.order_by("match_id")
+    }
 
 
 def build_leaderboard_rows(users, current_user, role_by_user_id=None):
@@ -405,6 +634,12 @@ def matches(request):
 
         match.voting_is_open = voting_is_open
         match.voting_message = voting_message
+        match.trends_visible = voting_trends_are_visible(match)
+
+        if match.trends_visible:
+            match.prediction_trends = get_prediction_trends_for_match(match)
+        else:
+            match.prediction_trends = None
 
         if voting_is_open:
             open_matches_count += 1
@@ -515,25 +750,15 @@ def submit_prediction(request, match_id):
         messages.error(request, error_message)
         return redirect(match_anchor_url)
 
-    created_any = False
-    saved_prediction = None
+    prediction, created = Prediction.objects.update_or_create(
+        user=request.user,
+        match=match,
+        defaults={
+            "prediction": prediction_choice,
+        },
+    )
 
-    for membership in memberships:
-        prediction, created = Prediction.objects.update_or_create(
-            user=request.user,
-            group=membership.group,
-            match=match,
-            defaults={
-                "prediction": prediction_choice,
-            },
-        )
-
-        if created:
-            created_any = True
-
-        saved_prediction = prediction
-
-    if created_any:
+    if created:
         success_message = f"Prediction saved for {match.home_team} vs {match.away_team}."
     else:
         success_message = (
@@ -545,8 +770,8 @@ def submit_prediction(request, match_id):
             {
                 "success": True,
                 "message": success_message,
-                "prediction": saved_prediction.prediction,
-                "prediction_display": saved_prediction.get_prediction_display(),
+                "prediction": prediction.prediction,
+                "prediction_display": prediction.get_prediction_display(),
                 "match_id": match.id,
             }
         )
@@ -659,3 +884,17 @@ def global_leaderboard(request):
     }
 
     return render(request, "predictions/leaderboard.html", context)
+
+
+@login_required
+def insights(request):
+    user_memberships = get_user_memberships(request.user)
+    insight_context = build_prediction_insights()
+
+    context = {
+        "user_memberships": user_memberships,
+        "primary_membership": user_memberships.first(),
+        **insight_context,
+    }
+
+    return render(request, "predictions/insights.html", context)

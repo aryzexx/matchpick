@@ -42,6 +42,10 @@
                         Global Leaderboard
                     </a>
 
+                    <a href="{% url 'insights' %}" class="{% if request.resolver_match.url_name == 'insights' %}active{% endif %}">
+                        Insights
+                    </a>
+
                     {% if user.is_staff %}
                         <form class="sync-form" method="post" action="{% url 'sync_latest_results' %}">
                             {% csrf_token %}

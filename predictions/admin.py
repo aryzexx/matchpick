@@ -115,6 +115,7 @@ class MatchAdmin(admin.ModelAdmin):
         """
         if obj.is_voting_open:
             return "Open"
+
         return "Locked"
 
     voting_status.short_description = "Voting"
@@ -138,11 +139,13 @@ class MatchAdmin(admin.ModelAdmin):
 class PredictionAdmin(admin.ModelAdmin):
     """
     Admin configuration for user predictions.
+
+    Predictions are now stored once per user and match, rather than once per
+    user, group and match.
     """
 
     list_display = (
         "user",
-        "group",
         "match",
         "prediction",
         "points_awarded",
@@ -150,7 +153,6 @@ class PredictionAdmin(admin.ModelAdmin):
     )
     search_fields = (
         "user__username",
-        "group__name",
         "match__home_team",
         "match__away_team",
     )

@@ -12,7 +12,7 @@ from .models import CompetitionGroup, GroupMember, Match, Prediction
 User = get_user_model()
 
 
-class MatchPickUpdateTwoTests(TestCase):
+class MatchPickUpdateThreeTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(
             username="owner",
@@ -127,7 +127,7 @@ class MatchPickUpdateTwoTests(TestCase):
 
         self.assertEqual(membership_count, 1)
 
-    def test_one_prediction_is_synced_across_all_user_leagues(self):
+    def test_one_prediction_is_stored_once_even_across_multiple_leagues(self):
         GroupMember.objects.create(
             user=self.aryan,
             group=self.friends,
@@ -153,11 +153,37 @@ class MatchPickUpdateTwoTests(TestCase):
             match=match,
         )
 
-        self.assertEqual(predictions.count(), 2)
+        self.assertEqual(predictions.count(), 1)
+        self.assertEqual(predictions.first().prediction, Prediction.PREDICTION_HOME)
 
-        prediction_values = set(predictions.values_list("prediction", flat=True))
+    def test_prediction_update_changes_same_row_not_new_row(self):
+        match = self.create_match()
 
-        self.assertEqual(prediction_values, {Prediction.PREDICTION_HOME})
+        self.login_as_aryan()
+
+        self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_HOME,
+            },
+            follow=True,
+        )
+
+        self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_AWAY,
+            },
+            follow=True,
+        )
+
+        predictions = Prediction.objects.filter(
+            user=self.aryan,
+            match=match,
+        )
+
+        self.assertEqual(predictions.count(), 1)
+        self.assertEqual(predictions.first().prediction, Prediction.PREDICTION_AWAY)
 
     def test_prediction_is_blocked_more_than_48_hours_before_kickoff(self):
         match = self.create_match(kickoff_delta_hours=72)
@@ -277,7 +303,6 @@ class MatchPickUpdateTwoTests(TestCase):
 
         Prediction.objects.create(
             user=self.aryan,
-            group=self.family,
             match=finished_match,
             prediction=Prediction.PREDICTION_AWAY,
         )
@@ -321,12 +346,11 @@ class MatchPickUpdateTwoTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mocked_call_command.assert_called_once_with(
+        mocked_call_command.assert_called_once()
+        self.assertEqual(
+            mocked_call_command.call_args.args[0],
             "import_openfootball_worldcup",
-            stdout=mocked_call_command.call_args.kwargs["stdout"],
-            stderr=mocked_call_command.call_args.kwargs["stderr"],
         )
-
         self.assertContains(response, "Latest fixtures and results synced")
 
     @patch("predictions.views.call_command")
@@ -355,3 +379,92 @@ class MatchPickUpdateTwoTests(TestCase):
         self.assertContains(response, "MatchPick")
         self.assertContains(response, "Predict once. Compete everywhere.")
         self.assertContains(response, "MP")
+
+    def test_insights_page_requires_login(self):
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response["Location"])
+
+    def test_insights_page_loads_for_logged_in_user(self):
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Insights")
+        self.assertContains(response, "Trends unlock after kickoff")
+
+    def test_match_card_hides_prediction_trends_before_kickoff(self):
+        match = self.create_match(kickoff_delta_hours=24)
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Prediction trends will appear after voting closes for this match.",
+        )
+        self.assertNotContains(response, "Voting split after lock")
+
+    def test_match_card_shows_prediction_trends_after_kickoff(self):
+        match = self.create_match(kickoff_delta_hours=-1)
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        Prediction.objects.create(
+            user=self.friend,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Voting split after lock")
+        self.assertContains(response, "Argentina win")
+        self.assertContains(response, "Brazil win")
+        self.assertContains(response, "50%")
+
+    def test_insights_page_shows_locked_match_voting_split(self):
+        match = self.create_match(
+            home_team="Australia",
+            away_team="Turkey",
+            kickoff_delta_hours=-1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        Prediction.objects.create(
+            user=self.friend,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Australia vs Turkey")
+        self.assertContains(response, "Australia win")
+        self.assertContains(response, "100%")
+        self.assertContains(response, "Most Backed Team")

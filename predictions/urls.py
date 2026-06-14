@@ -17,6 +17,7 @@ urlpatterns = [
     path("leagues/", views.leagues, name="leagues"),
     path("leagues/<int:group_id>/", views.league_detail, name="league_detail"),
     path("leaderboard/", views.global_leaderboard, name="leaderboard"),
+    path("insights/", views.insights, name="insights"),
     path(
         "staff/sync-results/",
         views.sync_latest_results,
