@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -11,11 +12,17 @@ from .models import CompetitionGroup, GroupMember, Match, Prediction
 User = get_user_model()
 
 
-class MatchPickUpdateOneTests(TestCase):
+class MatchPickUpdateTwoTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(
             username="owner",
             password="Testpass123!",
+        )
+
+        self.staff_user = User.objects.create_user(
+            username="staffadmin",
+            password="Testpass123!",
+            is_staff=True,
         )
 
         self.aryan = User.objects.create_user(
@@ -43,7 +50,7 @@ class MatchPickUpdateOneTests(TestCase):
         GroupMember.objects.create(
             user=self.aryan,
             group=self.family,
-            role=GroupMember.ROLE_MEMBER,
+            role=GroupMember.ROLE_ADMIN,
         )
 
         GroupMember.objects.create(
@@ -59,6 +66,8 @@ class MatchPickUpdateOneTests(TestCase):
         kickoff_delta_hours=24,
         status=None,
         result=None,
+        home_score=None,
+        away_score=None,
     ):
         if status is None:
             status = Match.STATUS_SCHEDULED
@@ -70,10 +79,15 @@ class MatchPickUpdateOneTests(TestCase):
             stage=Match.STAGE_GROUP,
             status=status,
             result=result,
+            home_score=home_score,
+            away_score=away_score,
         )
 
     def login_as_aryan(self):
         self.client.login(username="aryan", password="Testpass123!")
+
+    def login_as_staff(self):
+        self.client.login(username="staffadmin", password="Testpass123!")
 
     def test_user_can_join_second_league_after_registration(self):
         self.login_as_aryan()
@@ -141,9 +155,7 @@ class MatchPickUpdateOneTests(TestCase):
 
         self.assertEqual(predictions.count(), 2)
 
-        prediction_values = set(
-            predictions.values_list("prediction", flat=True)
-        )
+        prediction_values = set(predictions.values_list("prediction", flat=True))
 
         self.assertEqual(prediction_values, {Prediction.PREDICTION_HOME})
 
@@ -210,9 +222,7 @@ class MatchPickUpdateOneTests(TestCase):
     def test_league_detail_only_shows_members_of_that_league(self):
         self.login_as_aryan()
 
-        response = self.client.get(
-            reverse("league_detail", args=[self.family.id])
-        )
+        response = self.client.get(reverse("league_detail", args=[self.family.id]))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Family League")
@@ -230,41 +240,118 @@ class MatchPickUpdateOneTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "You are not a member of that league.")
 
-    def test_league_and_global_leaderboards_use_same_prediction_points(self):
-        GroupMember.objects.create(
-            user=self.aryan,
-            group=self.friends,
-            role=GroupMember.ROLE_MEMBER,
-        )
+    def test_leaderboard_shows_clearer_columns(self):
+        self.login_as_aryan()
 
-        finished_match = Match.objects.create(
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Correct Picks")
+        self.assertContains(response, "Incorrect Picks")
+        self.assertContains(response, "Missed Picks")
+        self.assertContains(response, "Accuracy")
+
+    def test_matches_page_shows_personal_prediction_progress_cards(self):
+        self.create_match(kickoff_delta_hours=24)
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your prediction progress")
+        self.assertContains(response, "Open Matches")
+        self.assertContains(response, "Picks Made")
+        self.assertContains(response, "Still Pending")
+
+    def test_leaderboard_calculates_correct_and_incorrect_predictions(self):
+        finished_match = self.create_match(
             home_team="Argentina",
             away_team="Brazil",
-            kickoff_time=timezone.now() - timedelta(hours=2),
-            stage=Match.STAGE_GROUP,
+            kickoff_delta_hours=-2,
             status=Match.STATUS_FINISHED,
+            result=Match.RESULT_HOME,
             home_score=2,
             away_score=1,
-            result=Match.RESULT_HOME,
         )
 
         Prediction.objects.create(
             user=self.aryan,
             group=self.family,
             match=finished_match,
-            prediction=Prediction.PREDICTION_HOME,
+            prediction=Prediction.PREDICTION_AWAY,
         )
 
         self.login_as_aryan()
 
-        global_response = self.client.get(reverse("leaderboard"))
-        family_response = self.client.get(
-            reverse("league_detail", args=[self.family.id])
-        )
-        friends_response = self.client.get(
-            reverse("league_detail", args=[self.friends.id])
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Incorrect Picks")
+        self.assertContains(response, "0%")
+
+    def test_staff_user_can_see_sync_results_button_on_matches_page(self):
+        self.login_as_staff()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sync Results")
+        self.assertContains(response, "Sync latest fixtures and results")
+
+    def test_non_staff_user_cannot_see_sync_results_button_on_matches_page(self):
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Sync Results")
+        self.assertNotContains(response, "Sync latest fixtures and results")
+
+    @patch("predictions.views.call_command")
+    def test_staff_user_can_trigger_sync_results_command(self, mocked_call_command):
+        self.login_as_staff()
+
+        response = self.client.post(
+            reverse("sync_latest_results"),
+            {
+                "next": reverse("matches"),
+            },
+            follow=True,
         )
 
-        self.assertContains(global_response, "3")
-        self.assertContains(family_response, "3")
-        self.assertContains(friends_response, "3")
+        self.assertEqual(response.status_code, 200)
+        mocked_call_command.assert_called_once_with(
+            "import_openfootball_worldcup",
+            stdout=mocked_call_command.call_args.kwargs["stdout"],
+            stderr=mocked_call_command.call_args.kwargs["stderr"],
+        )
+
+        self.assertContains(response, "Latest fixtures and results synced")
+
+    @patch("predictions.views.call_command")
+    def test_non_staff_user_cannot_trigger_sync_results_command(
+        self,
+        mocked_call_command,
+    ):
+        self.login_as_aryan()
+
+        response = self.client.post(
+            reverse("sync_latest_results"),
+            {
+                "next": reverse("matches"),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_call_command.assert_not_called()
+        self.assertContains(response, "Only staff users can sync fixtures and results.")
+
+    def test_homepage_uses_restored_matchpick_branding(self):
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "MatchPick")
+        self.assertContains(response, "Predict once. Compete everywhere.")
+        self.assertContains(response, "MP")

@@ -3,49 +3,101 @@
 {% block content %}
 <section class="page-heading">
     <p class="eyebrow">Global standings</p>
+
     <h1>Global Leaderboard</h1>
+
     <p>
-        View rankings across everyone using MatchPick. This page is only visible to logged-in users.
+        Rankings across everyone using MatchPick. This page is only visible to logged-in users.
     </p>
 </section>
 
-<section class="leaderboard-group-card">
-    <h2>All players</h2>
-    <span class="leaderboard-group-pill">
-        Global
-    </span>
+<section class="leaderboard-explainer">
+    <div>
+        <p class="eyebrow">How the leaderboard works</p>
 
-    <p class="leaderboard-note">
-        Your one prediction per match counts globally and in every league you belong to.
-        A correct prediction is worth 3 points. Incorrect and missed predictions are worth 0 points.
-    </p>
+        <h2>Performance, not just activity</h2>
+    </div>
+
+    <div class="explainer-grid">
+        <p><strong>Points</strong> = 3 points for each correct pick.</p>
+        <p><strong>Correct Picks</strong> = finished matches predicted correctly.</p>
+        <p><strong>Incorrect Picks</strong> = finished matches predicted wrongly.</p>
+        <p><strong>Missed Picks</strong> = finished matches where no pick was submitted.</p>
+        <p><strong>Accuracy</strong> = correct picks divided by completed picks.</p>
+    </div>
 </section>
 
-<section class="leaderboard-summary-grid">
-    <article class="leaderboard-summary-card">
-        <span class="leaderboard-summary-number">{{ total_members }}</span>
-        <span class="leaderboard-summary-label">Players</span>
+<section class="summary-grid">
+    <article class="summary-card">
+        <span class="summary-label">Players</span>
+        <strong>{{ total_members }}</strong>
     </article>
 
-    <article class="leaderboard-summary-card">
-        <span class="leaderboard-summary-number">{{ finished_matches_count }}</span>
-        <span class="leaderboard-summary-label">Finished matches</span>
+    <article class="summary-card">
+        <span class="summary-label">Finished Matches</span>
+        <strong>{{ finished_matches_count }}</strong>
     </article>
 
-    <article class="leaderboard-summary-card">
-        <span class="leaderboard-summary-number">{{ total_predictions }}</span>
-        <span class="leaderboard-summary-label">Predictions made</span>
+    <article class="summary-card success">
+        <span class="summary-label">Top Score</span>
+        <strong>{{ highest_points }}</strong>
     </article>
 
-    <article class="leaderboard-summary-card">
-        <span class="leaderboard-summary-number">{{ highest_points }}</span>
-        <span class="leaderboard-summary-label">Highest points</span>
+    <article class="summary-card">
+        <span class="summary-label">Average Accuracy</span>
+        <strong>{{ average_accuracy }}%</strong>
+    </article>
+</section>
+
+<section class="insight-grid">
+    <article class="insight-card">
+        <span>Top Scorer</span>
+
+        {% if top_scorer %}
+            <strong>{{ top_scorer.username }}</strong>
+            <p>{{ top_scorer.total_points }} points</p>
+        {% else %}
+            <strong>—</strong>
+            <p>No scored predictions yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="insight-card">
+        <span>Best Accuracy</span>
+
+        {% if most_accurate %}
+            <strong>{{ most_accurate.username }}</strong>
+            <p>{{ most_accurate.accuracy }}% accuracy</p>
+        {% else %}
+            <strong>—</strong>
+            <p>No completed picks yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="insight-card">
+        <span>Fewest Missed Picks</span>
+
+        {% if fewest_missed %}
+            <strong>{{ fewest_missed.username }}</strong>
+            <p>{{ fewest_missed.missed_finished_matches }} missed</p>
+        {% else %}
+            <strong>—</strong>
+            <p>No finished matches yet.</p>
+        {% endif %}
     </article>
 </section>
 
 {% if leaderboard_rows %}
     <section class="leaderboard-table-card">
-        <h2>Global leaderboard</h2>
+        <div class="section-title-row">
+            <div>
+                <p class="eyebrow">All players</p>
+
+                <h2>Global ranking</h2>
+            </div>
+
+            <span class="leaderboard-scope-pill dark-text">Global</span>
+        </div>
 
         <div class="leaderboard-table-wrapper">
             <table class="real-leaderboard-table">
@@ -54,9 +106,9 @@
                         <th>Rank</th>
                         <th>Player</th>
                         <th>Points</th>
-                        <th>Predictions</th>
-                        <th>Correct</th>
-                        <th>Missed</th>
+                        <th>Correct Picks</th>
+                        <th>Incorrect Picks</th>
+                        <th>Missed Picks</th>
                         <th>Accuracy</th>
                     </tr>
                 </thead>
@@ -65,7 +117,7 @@
                     {% for row in leaderboard_rows %}
                         <tr class="{% if row.is_current_user %}current-user-row{% endif %}">
                             <td>
-                                <span class="rank-badge {% if row.rank == 1 %}rank-one{% endif %}">
+                                <span class="rank-badge {% if row.rank == 1 %}rank-one{% elif row.rank == 2 %}rank-two{% elif row.rank == 3 %}rank-three{% endif %}">
                                     {{ row.rank }}
                                 </span>
                             </td>
@@ -86,12 +138,9 @@
                                 <span class="points-value">{{ row.total_points }}</span>
                             </td>
 
-                            <td>
-                                {{ row.predictions_made }}
-                                <span class="player-meta">{{ row.scored_predictions }} scored</span>
-                            </td>
-
                             <td>{{ row.correct_predictions }}</td>
+
+                            <td>{{ row.incorrect_predictions }}</td>
 
                             <td>
                                 <span class="missed-value">{{ row.missed_finished_matches }}</span>
@@ -105,15 +154,11 @@
                 </tbody>
             </table>
         </div>
-
-        <p class="leaderboard-note">
-            Accuracy is calculated using predictions for matches that have a final result.
-            Scheduled matches are not counted as scored predictions yet.
-        </p>
     </section>
 {% else %}
-    <section class="leaderboard-empty-card">
+    <section class="glass-card">
         <h2>No leaderboard data yet</h2>
+
         <p>
             Once players join leagues and submit predictions, they will appear here.
         </p>

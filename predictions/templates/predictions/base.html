@@ -11,10 +11,21 @@
 </head>
 
 <body>
+    <div class="site-background">
+        <div class="background-orb background-orb-one"></div>
+        <div class="background-orb background-orb-two"></div>
+        <div class="background-grid"></div>
+    </div>
+
     <header class="site-header">
         <nav class="navbar">
             <a class="brand" href="{% url 'home' %}">
-                MatchPick
+                <span class="brand-mark">MP</span>
+
+                <span class="brand-copy">
+                    <span class="brand-title">MatchPick</span>
+                    <span class="brand-subtitle">Predict once. Compete everywhere.</span>
+                </span>
             </a>
 
             <div class="nav-links">
@@ -32,6 +43,14 @@
                     </a>
 
                     {% if user.is_staff %}
+                        <form class="sync-form" method="post" action="{% url 'sync_latest_results' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit">
+                                Sync Results
+                            </button>
+                        </form>
+
                         <a href="/admin/">
                             Admin
                         </a>

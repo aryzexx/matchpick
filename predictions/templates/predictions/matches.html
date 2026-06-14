@@ -1,130 +1,123 @@
 {% extends "predictions/base.html" %}
 
 {% block content %}
-<style>
-    .matches-details-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .user-groups-card {
-        background: white;
-        border-radius: 18px;
-        padding: 24px;
-        margin-bottom: 24px;
-        box-shadow: var(--card-shadow);
-    }
-
-    .user-groups-list {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 12px;
-    }
-
-    .user-group-pill {
-        display: inline-block;
-        background: #eff6ff;
-        color: #1d4ed8;
-        border: 1px solid #bfdbfe;
-        border-radius: 999px;
-        padding: 8px 12px;
-        font-weight: 800;
-        font-size: 14px;
-        text-decoration: none;
-    }
-
-    .prediction-inline-message {
-        display: none;
-        margin-top: 12px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        font-weight: 800;
-        font-size: 14px;
-    }
-
-    .prediction-inline-message.success {
-        display: block;
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #bbf7d0;
-    }
-
-    .prediction-inline-message.error {
-        display: block;
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fecaca;
-    }
-
-    .prediction-option.is-saving {
-        opacity: 0.7;
-        cursor: wait;
-    }
-
-    .voting-reason {
-        margin-top: 8px;
-        font-weight: 800;
-        color: #6b7280;
-    }
-
-    @media (max-width: 900px) {
-        .matches-details-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
-
 <section class="page-heading">
     <p class="eyebrow">Fixtures</p>
+
     <h1>Matches</h1>
+
     <p>
-        View fixtures and submit one prediction per match. Your prediction counts in every league you belong to.
+        Submit one prediction per match. Your pick counts in every league you belong to.
     </p>
 </section>
 
-<section class="matches-summary-grid">
-    <article class="matches-summary-card">
-        <span class="matches-summary-number">{{ total_matches }}</span>
-        <span class="matches-summary-label">Total matches</span>
+{% if user.is_staff %}
+    <section class="admin-sync-card">
+        <div>
+            <p class="eyebrow">Admin tool</p>
+
+            <h2>Sync latest fixtures and results</h2>
+
+            <p>
+                This pulls the latest available results from the external data source.
+                Results may still be delayed if the source has not updated yet.
+            </p>
+        </div>
+
+        <form method="post" action="{% url 'sync_latest_results' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+            <button class="button primary" type="submit">
+                Sync Results
+            </button>
+        </form>
+    </section>
+{% endif %}
+
+<section class="summary-grid">
+    <article class="summary-card">
+        <span class="summary-label">Total Fixtures</span>
+        <strong>{{ total_matches }}</strong>
     </article>
 
-    <article class="matches-summary-card">
-        <span class="matches-summary-number">{{ scheduled_matches }}</span>
-        <span class="matches-summary-label">Scheduled</span>
+    <article class="summary-card success">
+        <span class="summary-label">Open Now</span>
+        <strong>{{ open_matches_count }}</strong>
     </article>
 
-    <article class="matches-summary-card">
-        <span class="matches-summary-number">{{ finished_matches }}</span>
-        <span class="matches-summary-label">Finished</span>
+    <article class="summary-card warning">
+        <span class="summary-label">Locked</span>
+        <strong>{{ locked_matches_count }}</strong>
+    </article>
+
+    <article class="summary-card">
+        <span class="summary-label">Finished</span>
+        <strong>{{ finished_matches }}</strong>
     </article>
 </section>
 
-{% if user_memberships %}
-    <section class="user-groups-card">
-        <h2>Your leagues</h2>
+<section class="personal-progress-card">
+    <div>
+        <p class="eyebrow">Your prediction progress</p>
 
-        <p class="leaderboard-note">
-            You make one prediction per match. The same prediction counts in all of your leagues.
+        <h2>Keep your open picks up to date</h2>
+
+        <p>
+            These cards only show your own progress for matches currently open for prediction.
         </p>
+    </div>
 
-        <div class="user-groups-list">
+    <div class="progress-stats">
+        <div>
+            <span>Open Matches</span>
+            <strong>{{ open_matches_count }}</strong>
+        </div>
+
+        <div>
+            <span>Picks Made</span>
+            <strong>{{ user_open_predictions_made }}</strong>
+        </div>
+
+        <div>
+            <span>Still Pending</span>
+            <strong>{{ user_open_predictions_pending }}</strong>
+        </div>
+    </div>
+</section>
+
+{% if user_memberships %}
+    <section class="glass-card">
+        <div class="section-title-row">
+            <div>
+                <p class="eyebrow">Your leagues</p>
+
+                <h2>Competing in</h2>
+            </div>
+
+            <a class="button secondary compact" href="{% url 'leagues' %}">
+                Manage Leagues
+            </a>
+        </div>
+
+        <div class="pill-list">
             {% for membership in user_memberships %}
-                <a class="user-group-pill" href="{% url 'league_detail' membership.group.id %}">
+                <a class="soft-pill" href="{% url 'league_detail' membership.group.id %}">
                     {{ membership.group.name }}
                 </a>
             {% endfor %}
         </div>
     </section>
 {% else %}
-    <section class="matches-warning-card">
+    <section class="glass-card">
         <h2>No league membership found</h2>
+
         <p>
-            Your account is not currently linked to a league.
-            Go to the Leagues page and join one using a league code.
+            Your account is not currently linked to a league. Join a league using a league code.
         </p>
 
         <a class="button primary" href="{% url 'leagues' %}">
-            Join a league
+            Join a League
         </a>
     </section>
 {% endif %}
@@ -132,10 +125,10 @@
 {% if matches %}
     <section class="matches-list">
         {% for match in matches %}
-            <article class="matches-card" id="match-{{ match.id }}">
-                <div class="matches-main">
+            <article class="match-card" id="match-{{ match.id }}">
+                <div class="match-card-header">
                     <div>
-                        <p class="matches-stage">{{ match.get_stage_display }}</p>
+                        <p class="match-stage">{{ match.get_stage_display }}</p>
 
                         <h2>
                             {% if match.home_team_flag %}
@@ -153,61 +146,63 @@
                             {{ match.away_team }}
                         </h2>
 
-                        <p class="matches-kickoff">
+                        <p class="match-kickoff">
                             Kickoff: {{ match.kickoff_time|date:"D, d M Y H:i" }}
                         </p>
                     </div>
 
-                    <div class="matches-status-block">
-                        <span class="matches-status-pill matches-status-{{ match.status }}">
+                    <div class="match-status-stack">
+                        <span class="status-pill status-{{ match.status }}">
                             {{ match.get_status_display }}
                         </span>
 
                         {% if match.voting_is_open %}
-                            <span class="matches-voting-pill matches-voting-open">Voting open</span>
+                            <span class="voting-pill open">Voting Open</span>
                         {% else %}
-                            <span class="matches-voting-pill matches-voting-locked">Voting locked</span>
+                            <span class="voting-pill locked">Voting Locked</span>
                         {% endif %}
                     </div>
                 </div>
 
-                <div class="matches-details-grid">
-                    <div class="matches-detail-box">
-                        <span class="matches-detail-label">Score</span>
-                        <span class="matches-detail-value">{{ match.score_display }}</span>
+                <div class="match-meta-grid">
+                    <div>
+                        <span>Score</span>
+                        <strong>{{ match.score_display }}</strong>
                     </div>
 
-                    <div class="matches-detail-box">
-                        <span class="matches-detail-label">Result</span>
-                        <span class="matches-detail-value">
+                    <div>
+                        <span>Result</span>
+
+                        <strong>
                             {% if match.has_result %}
                                 {{ match.get_result_display }}
                             {% else %}
                                 Awaiting result
                             {% endif %}
-                        </span>
+                        </strong>
                     </div>
                 </div>
 
                 {% if match.voting_is_open and user_memberships %}
                     <div class="prediction-panel">
-                        <h3>Your prediction</h3>
+                        <div class="prediction-panel-copy">
+                            <h3>Your prediction</h3>
 
-                        <p class="prediction-help">
-                            {% if match.user_prediction %}
-                                Current prediction:
-                                <strong class="current-prediction-text">
-                                    {{ match.user_prediction.get_prediction_display }}
-                                </strong>.
+                            <p>
+                                {% if match.user_prediction %}
+                                    Current pick:
+                                    <strong class="current-prediction-text">
+                                        {{ match.user_prediction.get_prediction_display }}
+                                    </strong>.
+                                {% else %}
+                                    Current pick:
+                                    <strong class="current-prediction-text">
+                                        Not selected yet
+                                    </strong>.
+                                {% endif %}
                                 This counts in all of your leagues.
-                            {% else %}
-                                Current prediction:
-                                <strong class="current-prediction-text">
-                                    Not selected yet
-                                </strong>.
-                                Choose once and it will count in all of your leagues.
-                            {% endif %}
-                        </p>
+                            </p>
+                        </div>
 
                         <form class="prediction-form" method="post" action="{% url 'submit_prediction' match.id %}">
                             {% csrf_token %}
@@ -243,10 +238,10 @@
                         <div class="prediction-inline-message" aria-live="polite"></div>
                     </div>
                 {% else %}
-                    <div class="prediction-locked">
+                    <div class="locked-panel">
                         {% if match.user_prediction %}
                             <p>
-                                Your prediction:
+                                Your pick:
                                 <strong>{{ match.user_prediction.get_prediction_display }}</strong>
                             </p>
 
@@ -260,22 +255,23 @@
                             <p>No prediction submitted for this match.</p>
                         {% endif %}
 
-                        <p class="voting-reason">{{ match.voting_message }}</p>
+                        <p class="locked-reason">{{ match.voting_message }}</p>
                     </div>
                 {% endif %}
             </article>
         {% endfor %}
     </section>
 {% else %}
-    <section class="matches-empty-card">
+    <section class="glass-card">
         <h2>No matches have been added yet</h2>
+
         <p>
             Add your first match through the Django admin panel.
         </p>
 
         {% if user.is_staff %}
             <a class="button primary" href="/admin/predictions/match/add/">
-                Add match in admin
+                Add Match in Admin
             </a>
         {% endif %}
     </section>

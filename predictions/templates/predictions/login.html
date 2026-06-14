@@ -1,47 +1,60 @@
 {% extends "predictions/base.html" %}
 
 {% block content %}
-<section class="auth-card">
-    <p class="eyebrow">Welcome back</p>
-    <h1>Log in</h1>
+<section class="auth-shell">
+    <article class="auth-card">
+        <p class="eyebrow">Welcome back</p>
 
-    <p class="auth-intro">
-        Log in using your MatchPick username and password.
-    </p>
+        <h1>Login to MatchPick</h1>
 
-    <form method="post" class="auth-form">
-        {% csrf_token %}
+        <p>
+            Continue making predictions and checking your league standings.
+        </p>
 
-        <input type="hidden" name="next" value="{{ next }}">
+        <form class="styled-form" method="post">
+            {% csrf_token %}
 
-        {% if form.non_field_errors %}
-            <div class="form-errors">
-                {{ form.non_field_errors }}
+            {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+
+            <div class="form-field">
+                {{ form.username.label_tag }}
+                {{ form.username }}
+
+                {% if form.username.errors %}
+                    {% for error in form.username.errors %}
+                        <p class="form-error">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
             </div>
-        {% endif %}
 
-        <div class="form-field">
-            <label for="{{ form.username.id_for_label }}">Username</label>
-            {{ form.username }}
-            {% for error in form.username.errors %}
-                <p class="field-error">{{ error }}</p>
-            {% endfor %}
-        </div>
+            <div class="form-field">
+                {{ form.password.label_tag }}
+                {{ form.password }}
 
-        <div class="form-field">
-            <label for="{{ form.password.id_for_label }}">Password</label>
-            {{ form.password }}
-            {% for error in form.password.errors %}
-                <p class="field-error">{{ error }}</p>
-            {% endfor %}
-        </div>
+                {% if form.password.errors %}
+                    {% for error in form.password.errors %}
+                        <p class="form-error">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
 
-        <button class="button primary full-width" type="submit">Log in</button>
-    </form>
+            {% if form.non_field_errors %}
+                {% for error in form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
+            {% endif %}
 
-    <p class="auth-switch">
-        Need an account?
-        <a href="{% url 'register' %}">Create one using your invite code</a>
-    </p>
+            <button class="button primary full-width" type="submit">
+                Login
+            </button>
+        </form>
+
+        <p class="auth-footer-text">
+            Need an account?
+            <a href="{% url 'register' %}">Register with a league code</a>
+        </p>
+    </article>
 </section>
 {% endblock %}

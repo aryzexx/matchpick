@@ -1,146 +1,79 @@
 {% extends "predictions/base.html" %}
 
 {% block content %}
-<style>
-    .leagues-layout {
-        display: grid;
-        grid-template-columns: 1.2fr 0.8fr;
-        gap: 24px;
-        align-items: start;
-    }
-
-    .league-card,
-    .join-league-card {
-        background: white;
-        border-radius: 18px;
-        padding: 24px;
-        box-shadow: var(--card-shadow);
-    }
-
-    .league-list {
-        display: grid;
-        gap: 16px;
-        margin-top: 18px;
-    }
-
-    .league-card-link {
-        display: block;
-        text-decoration: none;
-        color: inherit;
-    }
-
-    .league-card-link:hover .league-card {
-        transform: translateY(-2px);
-    }
-
-    .league-card {
-        transition: transform 0.2s ease;
-    }
-
-    .league-meta {
-        color: #6b7280;
-        font-weight: 800;
-        margin-top: 8px;
-    }
-
-    .join-form {
-        display: grid;
-        gap: 14px;
-        margin-top: 16px;
-    }
-
-    .join-form input {
-        width: 100%;
-        padding: 12px 14px;
-        border: 1px solid #d0d5dd;
-        border-radius: 12px;
-        font-size: 16px;
-    }
-
-    .form-error {
-        color: #991b1b;
-        font-weight: 800;
-        margin-top: 6px;
-    }
-
-    @media (max-width: 900px) {
-        .leagues-layout {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
-
 <section class="page-heading">
     <p class="eyebrow">Private leagues</p>
+
     <h1>Your Leagues</h1>
+
     <p>
-        View the leagues you have joined or enter a league code to join another one.
+        Join private leagues and open league-only leaderboards.
     </p>
 </section>
 
-<section class="leagues-layout">
-    <div>
-        <section class="join-league-card">
-            <h2>Join a league</h2>
+<section class="two-column-layout">
+    <article class="glass-card">
+        <p class="eyebrow">Join another league</p>
 
-            <p class="leaderboard-note">
-                Enter a league code from a family member, friend, or organiser.
-                You only need one account. Your match predictions count in every league you join.
-            </p>
+        <h2>Enter a league code</h2>
 
-            <form class="join-form" method="post">
-                {% csrf_token %}
+        <p>
+            You only need one MatchPick account. Your predictions will count in every league you join.
+        </p>
 
-                <div>
-                    {{ join_form.invite_code.label_tag }}
-                    {{ join_form.invite_code }}
+        <form class="styled-form" method="post">
+            {% csrf_token %}
 
-                    {% if join_form.invite_code.errors %}
-                        {% for error in join_form.invite_code.errors %}
-                            <p class="form-error">{{ error }}</p>
-                        {% endfor %}
-                    {% endif %}
-                </div>
+            <div class="form-field">
+                {{ join_form.invite_code.label_tag }}
+                {{ join_form.invite_code }}
 
-                {% if join_form.non_field_errors %}
-                    {% for error in join_form.non_field_errors %}
+                {% if join_form.invite_code.errors %}
+                    {% for error in join_form.invite_code.errors %}
                         <p class="form-error">{{ error }}</p>
                     {% endfor %}
                 {% endif %}
+            </div>
 
-                <button class="button primary" type="submit">
-                    Join League
-                </button>
-            </form>
-        </section>
-    </div>
-
-    <div>
-        <section class="join-league-card">
-            <h2>My leagues</h2>
-
-            {% if user_memberships %}
-                <div class="league-list">
-                    {% for membership in user_memberships %}
-                        <a class="league-card-link" href="{% url 'league_detail' membership.group.id %}">
-                            <article class="league-card">
-                                <h3>{{ membership.group.name }}</h3>
-                                <p class="league-meta">
-                                    Role: {{ membership.get_role_display }}
-                                </p>
-                                <p class="leaderboard-note">
-                                    Open league leaderboard
-                                </p>
-                            </article>
-                        </a>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="leaderboard-note">
-                    You are not in any leagues yet. Enter a league code to join one.
-                </p>
+            {% if join_form.non_field_errors %}
+                {% for error in join_form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
             {% endif %}
-        </section>
-    </div>
+
+            <button class="button primary" type="submit">
+                Join League
+            </button>
+        </form>
+    </article>
+
+    <article class="glass-card">
+        <div class="section-title-row">
+            <div>
+                <p class="eyebrow">My leagues</p>
+
+                <h2>League list</h2>
+            </div>
+        </div>
+
+        {% if user_memberships %}
+            <div class="league-list">
+                {% for membership in user_memberships %}
+                    <a class="league-link-card" href="{% url 'league_detail' membership.group.id %}">
+                        <div>
+                            <h3>{{ membership.group.name }}</h3>
+                            <p>Role: {{ membership.get_role_display }}</p>
+                        </div>
+
+                        <span>Open Leaderboard →</span>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>
+                You are not in any leagues yet. Enter a league code to join one.
+            </p>
+        {% endif %}
+    </article>
 </section>
 {% endblock %}

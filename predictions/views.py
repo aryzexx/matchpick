@@ -1,3 +1,4 @@
+import io
 import re
 from datetime import timedelta
 
@@ -5,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
+from django.core.management import call_command
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -40,11 +42,6 @@ GROUP_PLACEHOLDER_PATTERN = re.compile(
 
 
 def team_name_is_confirmed(team_name):
-    """
-    Returns False for placeholder team names such as TBC, TBD,
-    Winner Group A, Runner-up Group B, 1A, 2B, etc.
-    """
-
     if not team_name:
         return False
 
@@ -64,26 +61,12 @@ def team_name_is_confirmed(team_name):
 
 
 def match_teams_are_confirmed(match):
-    """
-    A match is confirmed only when both teams are real team names.
-    """
-
     return team_name_is_confirmed(match.home_team) and team_name_is_confirmed(
         match.away_team
     )
 
 
 def get_prediction_availability(match):
-    """
-    Applies the MatchPick prediction window rule.
-
-    A match can be predicted only when:
-    - the match is scheduled
-    - both teams are confirmed
-    - kickoff is within the next 48 hours
-    - kickoff has not passed
-    """
-
     now = timezone.now()
 
     if match.status != Match.STATUS_SCHEDULED:
@@ -102,19 +85,12 @@ def get_prediction_availability(match):
             "%a, %d %b %H:%M"
         )
 
-        return (
-            False,
-            f"Voting opens 48 hours before kickoff: {local_opens_at}.",
-        )
+        return False, f"Voting opens 48 hours before kickoff: {local_opens_at}."
 
     return True, "Voting is open."
 
 
 def get_user_memberships(user):
-    """
-    Returns all league memberships for a user.
-    """
-
     return (
         GroupMember.objects.filter(user=user)
         .select_related("group")
@@ -123,19 +99,6 @@ def get_user_memberships(user):
 
 
 def get_global_predictions_for_user(user, matches_list=None):
-    """
-    Returns one prediction per match for a user.
-
-    The database still stores a group on Prediction because the earlier version
-    of the app used group-specific prediction rows. The app now enforces the
-    correct rule at the view level:
-
-    one user + one match = one prediction
-
-    If multiple old rows exist for the same user and match, the latest row is
-    treated as the active prediction.
-    """
-
     predictions = Prediction.objects.filter(user=user).select_related("match")
 
     if matches_list is not None:
@@ -153,13 +116,6 @@ def get_global_predictions_for_user(user, matches_list=None):
 
 
 def build_leaderboard_rows(users, current_user, role_by_user_id=None):
-    """
-    Builds leaderboard rows for either the global leaderboard or a single league.
-
-    Predictions are calculated globally per user/match. The league only controls
-    which users appear in the table.
-    """
-
     finished_matches = [
         match
         for match in Match.objects.filter(status=Match.STATUS_FINISHED).order_by(
@@ -169,7 +125,6 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
     ]
 
     finished_matches_count = len(finished_matches)
-
     leaderboard_rows = []
 
     for user in users:
@@ -189,6 +144,11 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
 
                 if prediction.points_awarded > 0:
                     correct_predictions += 1
+
+        incorrect_predictions = scored_predictions - correct_predictions
+
+        if incorrect_predictions < 0:
+            incorrect_predictions = 0
 
         if scored_predictions > 0:
             accuracy = round((correct_predictions / scored_predictions) * 100, 1)
@@ -213,6 +173,7 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
                 "predictions_made": predictions_made,
                 "scored_predictions": scored_predictions,
                 "correct_predictions": correct_predictions,
+                "incorrect_predictions": incorrect_predictions,
                 "missed_finished_matches": missed_finished_matches,
                 "accuracy": accuracy,
                 "is_current_user": user == current_user,
@@ -223,6 +184,7 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
         key=lambda row: (
             -row["total_points"],
             -row["correct_predictions"],
+            row["missed_finished_matches"],
             row["username"].lower(),
         )
     )
@@ -231,9 +193,43 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
         row["rank"] = index
 
     highest_points = 0
+    average_accuracy = 0
+    top_scorer = None
+    most_accurate = None
+    fewest_missed = None
 
     if leaderboard_rows:
         highest_points = leaderboard_rows[0]["total_points"]
+        top_scorer = leaderboard_rows[0]
+
+        rows_with_scored_predictions = [
+            row for row in leaderboard_rows if row["scored_predictions"] > 0
+        ]
+
+        if rows_with_scored_predictions:
+            average_accuracy = round(
+                sum(row["accuracy"] for row in rows_with_scored_predictions)
+                / len(rows_with_scored_predictions),
+                1,
+            )
+
+            most_accurate = sorted(
+                rows_with_scored_predictions,
+                key=lambda row: (
+                    -row["accuracy"],
+                    -row["correct_predictions"],
+                    row["username"].lower(),
+                ),
+            )[0]
+
+        fewest_missed = sorted(
+            leaderboard_rows,
+            key=lambda row: (
+                row["missed_finished_matches"],
+                -row["total_points"],
+                row["username"].lower(),
+            ),
+        )[0]
 
     total_predictions = sum(row["predictions_made"] for row in leaderboard_rows)
 
@@ -243,7 +239,24 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
         "total_members": len(leaderboard_rows),
         "total_predictions": total_predictions,
         "highest_points": highest_points,
+        "average_accuracy": average_accuracy,
+        "top_scorer": top_scorer,
+        "most_accurate": most_accurate,
+        "fewest_missed": fewest_missed,
     }
+
+
+def get_safe_redirect_url(request, fallback_url_name="matches"):
+    redirect_target = request.POST.get("next") or request.GET.get("next")
+
+    if redirect_target and url_has_allowed_host_and_scheme(
+        url=redirect_target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect_target
+
+    return reverse(fallback_url_name)
 
 
 def home(request):
@@ -251,13 +264,6 @@ def home(request):
 
 
 def register(request):
-    """
-    Allows a new user to create an account using a username, password,
-    and invite code.
-
-    The invite code adds the user to their first league.
-    """
-
     if request.user.is_authenticated:
         return redirect("matches")
 
@@ -334,14 +340,53 @@ def user_logout(request):
 
 
 @login_required
+@require_POST
+def sync_latest_results(request):
+    if not request.user.is_staff:
+        messages.error(request, "Only staff users can sync fixtures and results.")
+        return redirect("matches")
+
+    output_buffer = io.StringIO()
+    error_buffer = io.StringIO()
+
+    try:
+        call_command(
+            "import_openfootball_worldcup",
+            stdout=output_buffer,
+            stderr=error_buffer,
+        )
+    except Exception as error:
+        messages.error(
+            request,
+            f"Result sync failed: {error}",
+        )
+
+        return redirect(get_safe_redirect_url(request))
+
+    command_output = output_buffer.getvalue().strip()
+    command_errors = error_buffer.getvalue().strip()
+
+    if command_errors:
+        messages.warning(
+            request,
+            f"Sync completed with warnings: {command_errors[:300]}",
+        )
+    elif command_output:
+        messages.success(
+            request,
+            f"Latest fixtures and results synced. {command_output[:300]}",
+        )
+    else:
+        messages.success(
+            request,
+            "Latest fixtures and results synced successfully.",
+        )
+
+    return redirect(get_safe_redirect_url(request))
+
+
+@login_required
 def matches(request):
-    """
-    Displays fixtures.
-
-    Users make one prediction per match. That prediction counts in every league
-    they belong to.
-    """
-
     user_memberships = get_user_memberships(request.user)
 
     matches_list = list(Match.objects.all().order_by("kickoff_time", "home_team"))
@@ -351,6 +396,8 @@ def matches(request):
         matches_list,
     )
 
+    open_matches_count = 0
+
     for match in matches_list:
         match.user_prediction = predictions_by_match_id.get(match.id)
 
@@ -358,6 +405,31 @@ def matches(request):
 
         match.voting_is_open = voting_is_open
         match.voting_message = voting_message
+
+        if voting_is_open:
+            open_matches_count += 1
+
+    open_match_ids = [match.id for match in matches_list if match.voting_is_open]
+
+    if open_match_ids:
+        user_open_predictions_made = (
+            Prediction.objects.filter(
+                user=request.user,
+                match_id__in=open_match_ids,
+            )
+            .values("match_id")
+            .distinct()
+            .count()
+        )
+    else:
+        user_open_predictions_made = 0
+
+    user_open_predictions_pending = open_matches_count - user_open_predictions_made
+
+    if user_open_predictions_pending < 0:
+        user_open_predictions_pending = 0
+
+    locked_matches_count = len(matches_list) - open_matches_count
 
     context = {
         "user_memberships": user_memberships,
@@ -370,6 +442,10 @@ def matches(request):
         "finished_matches": Match.objects.filter(
             status=Match.STATUS_FINISHED
         ).count(),
+        "open_matches_count": open_matches_count,
+        "locked_matches_count": locked_matches_count,
+        "user_open_predictions_made": user_open_predictions_made,
+        "user_open_predictions_pending": user_open_predictions_pending,
     }
 
     return render(request, "predictions/matches.html", context)
@@ -378,14 +454,6 @@ def matches(request):
 @login_required
 @require_POST
 def submit_prediction(request, match_id):
-    """
-    Saves one prediction for the selected match.
-
-    Because the current database stores predictions per group, this view syncs
-    the chosen prediction across all leagues the user belongs to. Leaderboards
-    still treat the result as one global user/match prediction.
-    """
-
     match = get_object_or_404(Match, id=match_id)
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
     match_anchor_url = f"{reverse('matches')}#match-{match.id}"
@@ -489,11 +557,6 @@ def submit_prediction(request, match_id):
 
 @login_required
 def leagues(request):
-    """
-    Shows all leagues the user belongs to and lets them join another league
-    using a league code.
-    """
-
     if request.method == "POST":
         join_form = JoinLeagueForm(request.POST)
 
@@ -533,10 +596,6 @@ def leagues(request):
 
 @login_required
 def league_detail(request, group_id):
-    """
-    Displays one league page and that league's leaderboard only.
-    """
-
     group = get_object_or_404(CompetitionGroup, id=group_id)
 
     current_membership = GroupMember.objects.filter(
@@ -582,11 +641,6 @@ def league_detail(request, group_id):
 
 @login_required
 def global_leaderboard(request):
-    """
-    Displays the global leaderboard for all app users who belong to at least
-    one league.
-    """
-
     user_ids = GroupMember.objects.values_list("user_id", flat=True).distinct()
 
     users = User.objects.filter(id__in=user_ids).order_by("username")
