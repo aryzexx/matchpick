@@ -364,30 +364,43 @@
                                                     <h3>Voting split after lock</h3>
                                                 </div>
 
-                                                <span class="trend-total">
-                                                    {{ match.prediction_trends.total_predictions }} picks
-                                                </span>
+                                                <div class="trend-heading-actions">
+                                                    {% if match.shared_league_pick_reveal %}
+                                                        <button
+                                                            class="view-league-picks-button"
+                                                            type="button"
+                                                            data-modal-target="league-picks-modal-{{ match.id }}"
+                                                        >
+                                                            View league picks
+                                                        </button>
+                                                    {% endif %}
+
+                                                    <span class="trend-total">
+                                                        {{ match.prediction_trends.total_predictions }} picks
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            <div class="trend-list">
+                                            <div class="trend-list refined-trend-list">
                                                 {% for option in match.prediction_trends.options %}
-                                                    <div class="trend-row">
-                                                        <div class="trend-row-top">
-                                                            <span>
+                                                    <div class="trend-row refined-trend-row">
+                                                        <div class="trend-option-line">
+                                                            <div class="trend-option-name">
                                                                 {% if option.key == 'home' %}
                                                                     {% if match.home_team_flag_url %}
                                                                         <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
                                                                     {% endif %}
-                                                                    {{ match.home_team }} win
+                                                                    <span>{{ match.home_team }} win</span>
                                                                 {% elif option.key == 'away' %}
                                                                     {% if match.away_team_flag_url %}
                                                                         <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
                                                                     {% endif %}
-                                                                    {{ match.away_team }} win
+                                                                    <span>{{ match.away_team }} win</span>
                                                                 {% else %}
-                                                                    Draw
+                                                                    <span class="draw-icon">D</span>
+                                                                    <span>Draw</span>
                                                                 {% endif %}
-                                                            </span>
+                                                            </div>
 
                                                             <strong>{{ option.percentage }}%</strong>
                                                         </div>
@@ -396,81 +409,106 @@
                                                             <div class="trend-fill" style="--trend-width: {{ option.percentage }}%;"></div>
                                                         </div>
 
-                                                        <span class="trend-count">
+                                                        <div class="trend-count">
                                                             {{ option.count }} pick{% if option.count != 1 %}s{% endif %}
-                                                        </span>
+                                                        </div>
                                                     </div>
                                                 {% endfor %}
                                             </div>
                                         </div>
+
+                                        {% if match.shared_league_pick_reveal %}
+                                            <div
+                                                class="league-picks-modal"
+                                                id="league-picks-modal-{{ match.id }}"
+                                                hidden
+                                                role="dialog"
+                                                aria-modal="true"
+                                                aria-labelledby="league-picks-title-{{ match.id }}"
+                                            >
+                                                <div class="league-picks-modal-backdrop" data-modal-close="league-picks-modal-{{ match.id }}"></div>
+
+                                                <div class="league-picks-modal-card">
+                                                    <div class="league-picks-modal-header">
+                                                        <div>
+                                                            <p class="eyebrow">League picks</p>
+
+                                                            <h3 id="league-picks-title-{{ match.id }}">
+                                                                Who picked what
+                                                            </h3>
+
+                                                            <p>
+                                                                See what others in your league picked!
+                                                            </p>
+                                                        </div>
+
+                                                        <button
+                                                            class="modal-close-button"
+                                                            type="button"
+                                                            data-modal-close="league-picks-modal-{{ match.id }}"
+                                                            aria-label="Close league picks"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+
+                                                    <div class="league-picks-modal-summary">
+                                                        <div>
+                                                            <strong>{{ match.shared_league_pick_reveal.submitted_count }}</strong>
+                                                            <span>submitted</span>
+                                                        </div>
+
+                                                        <div>
+                                                            <strong>{{ match.shared_league_pick_reveal.total_members }}</strong>
+                                                            <span>people shown</span>
+                                                        </div>
+
+                                                        <div>
+                                                            <strong>{{ match.shared_league_pick_reveal.league_count }}</strong>
+                                                            <span>your leagues</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="league-pick-buckets modal-buckets">
+                                                        {% for bucket in match.shared_league_pick_reveal.buckets %}
+                                                            <div class="league-pick-bucket bucket-{{ bucket.key }}">
+                                                                <div class="bucket-label-row">
+                                                                    <strong>
+                                                                        {% if bucket.flag_url %}
+                                                                            <img class="team-flag-img" src="{{ bucket.flag_url }}" alt="{{ bucket.team }} flag" loading="lazy">
+                                                                        {% elif bucket.key == 'draw' %}
+                                                                            <span class="draw-icon small">D</span>
+                                                                        {% endif %}
+                                                                        {{ bucket.label }}
+                                                                    </strong>
+
+                                                                    <span>{{ bucket.members|length }}</span>
+                                                                </div>
+
+                                                                {% if bucket.members %}
+                                                                    <div class="member-chip-list">
+                                                                        {% for member in bucket.members %}
+                                                                            <span class="member-chip {% if member.is_current_user %}you{% endif %}">
+                                                                                {{ member.username }}
+                                                                                {% if member.is_current_user %}
+                                                                                    <small>You</small>
+                                                                                {% endif %}
+                                                                            </span>
+                                                                        {% endfor %}
+                                                                    </div>
+                                                                {% else %}
+                                                                    <p class="empty-bucket-text">No one</p>
+                                                                {% endif %}
+                                                            </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
                                     {% else %}
                                         <div class="trend-locked-note">
                                             Voting has closed, but no predictions were submitted for this match.
                                         </div>
-                                    {% endif %}
-
-                                    {% if match.league_pick_reveals %}
-                                        <details class="league-picks-disclosure">
-                                            <summary>
-                                                <span>
-                                                    Who picked what
-                                                </span>
-
-                                                <small>
-                                                    Tap to reveal league picks
-                                                </small>
-                                            </summary>
-
-                                            <div class="league-picks-panel">
-                                                <div class="league-reveal-grid">
-                                                    {% for reveal in match.league_pick_reveals %}
-                                                        <article class="league-reveal-card">
-                                                            <div class="league-reveal-title">
-                                                                <div>
-                                                                    <h4>{{ reveal.group.name }}</h4>
-
-                                                                    <p>
-                                                                        {{ reveal.submitted_count }} of {{ reveal.total_members }} members submitted a pick.
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-
-                                                            <div class="league-pick-buckets">
-                                                                {% for bucket in reveal.buckets %}
-                                                                    <div class="league-pick-bucket bucket-{{ bucket.key }}">
-                                                                        <div class="bucket-label-row">
-                                                                            <strong>
-                                                                                {% if bucket.flag_url %}
-                                                                                    <img class="team-flag-img" src="{{ bucket.flag_url }}" alt="{{ bucket.team }} flag" loading="lazy">
-                                                                                {% endif %}
-                                                                                {{ bucket.label }}
-                                                                            </strong>
-
-                                                                            <span>{{ bucket.members|length }}</span>
-                                                                        </div>
-
-                                                                        {% if bucket.members %}
-                                                                            <div class="member-chip-list">
-                                                                                {% for member in bucket.members %}
-                                                                                    <span class="member-chip {% if member.is_current_user %}you{% endif %}">
-                                                                                        {{ member.username }}
-                                                                                        {% if member.is_current_user %}
-                                                                                            <small>You</small>
-                                                                                        {% endif %}
-                                                                                    </span>
-                                                                                {% endfor %}
-                                                                            </div>
-                                                                        {% else %}
-                                                                            <p class="empty-bucket-text">No one</p>
-                                                                        {% endif %}
-                                                                    </div>
-                                                                {% endfor %}
-                                                            </div>
-                                                        </article>
-                                                    {% endfor %}
-                                                </div>
-                                            </div>
-                                        </details>
                                     {% endif %}
                                 {% else %}
                                     <div class="trend-locked-note">
@@ -648,6 +686,62 @@
                     });
                 }
             });
+        });
+
+        const openModalButtons = document.querySelectorAll("[data-modal-target]");
+        const closeModalButtons = document.querySelectorAll("[data-modal-close]");
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+
+            if (!modal) {
+                return;
+            }
+
+            modal.hidden = false;
+            document.body.classList.add("modal-open");
+
+            const closeButton = modal.querySelector(".modal-close-button");
+
+            if (closeButton) {
+                closeButton.focus();
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+
+            if (!modal) {
+                return;
+            }
+
+            modal.hidden = true;
+            document.body.classList.remove("modal-open");
+        }
+
+        openModalButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                openModal(button.dataset.modalTarget);
+            });
+        });
+
+        closeModalButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                closeModal(button.dataset.modalClose);
+            });
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key !== "Escape") {
+                return;
+            }
+
+            const openModal = document.querySelector(".league-picks-modal:not([hidden])");
+
+            if (openModal) {
+                openModal.hidden = true;
+                document.body.classList.remove("modal-open");
+            }
         });
     });
 </script>

@@ -161,10 +161,6 @@ def get_match_timing_label(match, voting_is_open):
 
 
 def voting_trends_are_visible(match):
-    """
-    Voting trends and league pick reveal are only shown once voting can no
-    longer influence a user's pick.
-    """
     return match.status != Match.STATUS_SCHEDULED or timezone.now() >= match.kickoff_time
 
 
@@ -242,102 +238,108 @@ def get_prediction_trends_for_match(match):
     }
 
 
-def build_league_pick_reveals_for_match(match, user_memberships, current_user):
+def build_shared_league_pick_reveal_for_match(match, user_memberships, current_user):
     """
-    Reveals how members of the user's own leagues voted after voting has locked.
+    Builds one clean pick reveal for people who share at least one league with
+    the current user.
 
-    Prediction rows are no longer tied to groups, so this function calculates a
-    group view by looking at each league's members and then checking each member's
-    one prediction for the match.
+    This avoids the clutter of showing separate breakdown cards for every league.
+    If a person appears in multiple of the user's leagues, they are only shown
+    once.
     """
-    reveal_groups = []
+    group_ids = [membership.group_id for membership in user_memberships]
 
-    for membership in user_memberships:
-        group = membership.group
+    if not group_ids:
+        return None
 
-        group_memberships = list(
-            GroupMember.objects.filter(group=group)
-            .select_related("user")
-            .order_by("user__username")
-        )
+    shared_memberships = (
+        GroupMember.objects.filter(group_id__in=group_ids)
+        .select_related("user")
+        .order_by("user__username")
+    )
 
-        user_ids = [group_membership.user_id for group_membership in group_memberships]
+    member_by_user_id = {}
 
-        predictions = Prediction.objects.filter(
-            match=match,
-            user_id__in=user_ids,
-        ).select_related("user")
+    for membership in shared_memberships:
+        member_by_user_id[membership.user_id] = membership.user
 
-        prediction_by_user_id = {
-            prediction.user_id: prediction for prediction in predictions
+    shared_users = sorted(
+        member_by_user_id.values(),
+        key=lambda user: user.username.lower(),
+    )
+
+    shared_user_ids = [user.id for user in shared_users]
+
+    predictions = Prediction.objects.filter(
+        match=match,
+        user_id__in=shared_user_ids,
+    ).select_related("user")
+
+    prediction_by_user_id = {
+        prediction.user_id: prediction for prediction in predictions
+    }
+
+    buckets = {
+        Prediction.PREDICTION_HOME: [],
+        Prediction.PREDICTION_DRAW: [],
+        Prediction.PREDICTION_AWAY: [],
+        "missed": [],
+    }
+
+    for member_user in shared_users:
+        prediction = prediction_by_user_id.get(member_user.id)
+
+        member_row = {
+            "username": member_user.username,
+            "is_current_user": member_user.id == current_user.id,
         }
 
-        buckets = {
-            Prediction.PREDICTION_HOME: [],
-            Prediction.PREDICTION_DRAW: [],
-            Prediction.PREDICTION_AWAY: [],
-            "missed": [],
-        }
+        if prediction:
+            buckets[prediction.prediction].append(member_row)
+        else:
+            buckets["missed"].append(member_row)
 
-        for group_membership in group_memberships:
-            member_user = group_membership.user
-            prediction = prediction_by_user_id.get(member_user.id)
+    submitted_count = (
+        len(buckets[Prediction.PREDICTION_HOME])
+        + len(buckets[Prediction.PREDICTION_DRAW])
+        + len(buckets[Prediction.PREDICTION_AWAY])
+    )
 
-            member_row = {
-                "username": member_user.username,
-                "is_current_user": member_user.id == current_user.id,
-            }
-
-            if prediction:
-                buckets[prediction.prediction].append(member_row)
-            else:
-                buckets["missed"].append(member_row)
-
-        submitted_count = (
-            len(buckets[Prediction.PREDICTION_HOME])
-            + len(buckets[Prediction.PREDICTION_DRAW])
-            + len(buckets[Prediction.PREDICTION_AWAY])
-        )
-
-        reveal_groups.append(
+    return {
+        "total_members": len(shared_users),
+        "submitted_count": submitted_count,
+        "league_count": len(group_ids),
+        "buckets": [
             {
-                "group": group,
-                "total_members": len(group_memberships),
-                "submitted_count": submitted_count,
-                "buckets": [
-                    {
-                        "key": Prediction.PREDICTION_HOME,
-                        "label": f"{match.home_team} win",
-                        "team": match.home_team,
-                        "flag_url": match.home_team_flag_url,
-                        "members": buckets[Prediction.PREDICTION_HOME],
-                    },
-                    {
-                        "key": Prediction.PREDICTION_DRAW,
-                        "label": "Draw",
-                        "team": "",
-                        "flag_url": "",
-                        "members": buckets[Prediction.PREDICTION_DRAW],
-                    },
-                    {
-                        "key": Prediction.PREDICTION_AWAY,
-                        "label": f"{match.away_team} win",
-                        "team": match.away_team,
-                        "flag_url": match.away_team_flag_url,
-                        "members": buckets[Prediction.PREDICTION_AWAY],
-                    },
-                    {
-                        "key": "missed",
-                        "label": "No pick submitted",
-                        "team": "",
-                        "flag_url": "",
-                        "members": buckets["missed"],
-                    },
-                ],
-            }
-        )
-
-    return reveal_groups
+                "key": Prediction.PREDICTION_HOME,
+                "label": f"{match.home_team} win",
+                "team": match.home_team,
+                "flag_url": match.home_team_flag_url,
+                "members": buckets[Prediction.PREDICTION_HOME],
+            },
+            {
+                "key": Prediction.PREDICTION_DRAW,
+                "label": "Draw",
+                "team": "",
+                "flag_url": "",
+                "members": buckets[Prediction.PREDICTION_DRAW],
+            },
+            {
+                "key": Prediction.PREDICTION_AWAY,
+                "label": f"{match.away_team} win",
+                "team": match.away_team,
+                "flag_url": match.away_team_flag_url,
+                "members": buckets[Prediction.PREDICTION_AWAY],
+            },
+            {
+                "key": "missed",
+                "label": "No pick submitted",
+                "team": "",
+                "flag_url": "",
+                "members": buckets["missed"],
+            },
+        ],
+    }
 
 
 def build_prediction_insights():
@@ -983,14 +985,14 @@ def matches(request):
 
         if match.trends_visible:
             match.prediction_trends = get_prediction_trends_for_match(match)
-            match.league_pick_reveals = build_league_pick_reveals_for_match(
+            match.shared_league_pick_reveal = build_shared_league_pick_reveal_for_match(
                 match=match,
                 user_memberships=user_memberships,
                 current_user=request.user,
             )
         else:
             match.prediction_trends = None
-            match.league_pick_reveals = []
+            match.shared_league_pick_reveal = None
 
         if voting_is_open:
             open_matches_count += 1

@@ -229,3 +229,13 @@ The biggest improvement was not just adding features, but improving the way user
 The post-lock league reveal also makes the app more social. Instead of only seeing percentages, users can now see how people in their own league voted after the match has locked.
 
 The main lesson from this update was that presentation needs to be handled as a system. Some earlier layout issues repeated because different pages used different card structures. Adding shared polish styling helped make the pages feel more consistent.
+
+## Final Presentation Adjustment
+
+After testing the first version of the league pick reveal, I found that showing every league separately inside the match card made the card too long and visually cluttered.
+
+I changed the design so that the match card only shows the voting split by default. The more detailed “Who picked what” information is now hidden behind a “View league picks” button.
+
+When opened, the modal shows one combined breakdown of people who share at least one league with the current user. This avoids repeating the same person across multiple leagues and keeps the match card cleaner.
+
+This was chosen over hover behaviour because hover is unreliable on mobile and can be difficult for users to discover. A button and modal works better across desktop, tablet, and phone.
