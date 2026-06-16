@@ -1,7 +1,7 @@
 {% extends "predictions/base.html" %}
 
 {% block content %}
-<section class="page-heading">
+<section class="page-heading leagues-v2-heading">
     <p class="eyebrow">Private leagues</p>
 
     <h1>Your Leagues</h1>
@@ -11,8 +11,8 @@
     </p>
 </section>
 
-<section class="two-column-layout">
-    <article class="glass-card">
+<section class="leagues-v2-grid">
+    <article class="leagues-v2-card leagues-v2-join-card">
         <p class="eyebrow">Join another league</p>
 
         <h2>Enter a league code</h2>
@@ -21,10 +21,10 @@
             You only need one MatchPick account. Your predictions will count in every league you join.
         </p>
 
-        <form class="styled-form" method="post">
+        <form class="leagues-v2-form" method="post">
             {% csrf_token %}
 
-            <div class="form-field">
+            <div class="leagues-v2-field">
                 {{ join_form.invite_code.label_tag }}
                 {{ join_form.invite_code }}
 
@@ -41,14 +41,14 @@
                 {% endfor %}
             {% endif %}
 
-            <button class="button primary" type="submit">
+            <button class="button primary leagues-v2-submit" type="submit">
                 Join League
             </button>
         </form>
     </article>
 
-    <article class="glass-card">
-        <div class="section-title-row">
+    <article class="leagues-v2-card leagues-v2-list-card">
+        <div class="leagues-v2-card-heading">
             <div>
                 <p class="eyebrow">My leagues</p>
 
@@ -57,9 +57,9 @@
         </div>
 
         {% if user_memberships %}
-            <div class="league-list">
+            <div class="leagues-v2-list">
                 {% for membership in user_memberships %}
-                    <a class="league-link-card" href="{% url 'league_detail' membership.group.id %}">
+                    <a class="leagues-v2-link-card" href="{% url 'league_detail' membership.group.id %}">
                         <div>
                             <h3>{{ membership.group.name }}</h3>
                             <p>Role: {{ membership.get_role_display }}</p>
@@ -70,9 +70,13 @@
                 {% endfor %}
             </div>
         {% else %}
-            <p>
-                You are not in any leagues yet. Enter a league code to join one.
-            </p>
+            <div class="leagues-v2-empty">
+                <h3>No leagues joined yet</h3>
+
+                <p>
+                    You are not in any leagues yet. Enter a league code to join one.
+                </p>
+            </div>
         {% endif %}
     </article>
 </section>

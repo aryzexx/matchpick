@@ -1,27 +1,27 @@
 {% extends "predictions/base.html" %}
 
 {% block content %}
-<section class="page-heading">
-    <p class="eyebrow">Fixtures</p>
+<section class="page-heading matches-v2-heading">
+    <p class="eyebrow">MatchPick v2.0</p>
 
-    <h1>Matches</h1>
+    <h1>World Cup Match Centre</h1>
 
     <p>
-        Submit one prediction per match. Your pick counts in every league you belong to.
+        Make your predictions, track locked voting trends, and reveal league picks after kickoff.
+        One pick per match counts across every league you belong to.
     </p>
 </section>
 
-<div class="matches-page-stack">
+<div class="matches-v2-shell">
     {% if user.is_staff %}
-        <section class="admin-sync-card">
+        <section class="admin-sync-card matches-v2-admin-card">
             <div>
-                <p class="eyebrow">Admin tool</p>
+                <p class="eyebrow">Admin control</p>
 
                 <h2>Sync latest fixtures and results</h2>
 
                 <p>
-                    This pulls the latest available results from the external data source.
-                    Results may still be delayed if the source has not updated yet.
+                    Pull the latest available World Cup fixtures and results from the configured external data source.
                 </p>
             </div>
 
@@ -36,40 +36,40 @@
         </section>
     {% endif %}
 
-    <section class="summary-grid">
-        <article class="summary-card">
-            <span class="summary-label">Total Fixtures</span>
-            <strong>{{ total_matches }}</strong>
-        </article>
+    <section class="matches-v2-command-centre">
+        <div class="matches-v2-command-copy">
+            <p class="eyebrow">Tournament dashboard</p>
 
-        <article class="summary-card success">
-            <span class="summary-label">Open Now</span>
-            <strong>{{ open_matches_count }}</strong>
-        </article>
-
-        <article class="summary-card warning">
-            <span class="summary-label">Locked</span>
-            <strong>{{ locked_matches_count }}</strong>
-        </article>
-
-        <article class="summary-card">
-            <span class="summary-label">Finished</span>
-            <strong>{{ finished_matches }}</strong>
-        </article>
-    </section>
-
-    <section class="personal-progress-card elevated-card">
-        <div>
-            <p class="eyebrow">Your prediction progress</p>
-
-            <h2>Keep your open picks up to date</h2>
+            <h2>Your prediction progress</h2>
 
             <p>
-                These cards only show your own progress for matches currently open for prediction.
+                Focus on open picks first, review locked trends after kickoff, and use league pick reveal only when you want the deeper social breakdown.
             </p>
         </div>
 
-        <div class="progress-stats">
+        <div class="matches-v2-stat-grid">
+            <article class="matches-v2-stat-card">
+                <span>Total fixtures</span>
+                <strong>{{ total_matches }}</strong>
+            </article>
+
+            <article class="matches-v2-stat-card success">
+                <span>Open now</span>
+                <strong>{{ open_matches_count }}</strong>
+            </article>
+
+            <article class="matches-v2-stat-card warning">
+                <span>Locked</span>
+                <strong>{{ locked_matches_count }}</strong>
+            </article>
+
+            <article class="matches-v2-stat-card">
+                <span>Finished</span>
+                <strong>{{ finished_matches }}</strong>
+            </article>
+        </div>
+
+        <div class="matches-v2-progress-strip">
             <div>
                 <span>Open Matches</span>
                 <strong>{{ open_matches_count }}</strong>
@@ -88,27 +88,27 @@
     </section>
 
     {% if closing_soon_matches %}
-        <section class="closing-soon-card">
+        <section class="matches-v2-closing-panel">
             <div class="section-title-row">
                 <div>
-                    <p class="eyebrow">Time-sensitive</p>
+                    <p class="eyebrow">Closing soon</p>
 
-                    <h2>Closing soon</h2>
+                    <h2>Act before kickoff</h2>
 
                     <p>
-                        These open fixtures kick off soon. Submit or update your picks before voting locks.
+                        These fixtures are currently open and will lock soon.
                     </p>
                 </div>
 
                 <button class="button secondary compact js-activate-filter" type="button" data-filter="closing">
-                    View All
+                    View closing soon
                 </button>
             </div>
 
-            <div class="closing-soon-grid">
+            <div class="matches-v2-closing-grid">
                 {% for match in closing_soon_matches %}
-                    <a class="closing-soon-item" href="#match-{{ match.id }}">
-                        <strong>
+                    <a class="matches-v2-closing-card" href="#match-{{ match.id }}">
+                        <span class="matches-v2-closing-title">
                             <span class="team-inline">
                                 {% if match.home_team_flag_url %}
                                     <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
@@ -124,9 +124,9 @@
                                 {% endif %}
                                 {{ match.away_team }}
                             </span>
-                        </strong>
+                        </span>
 
-                        <span>{{ match.timing_label }}</span>
+                        <strong>{{ match.timing_label }}</strong>
                     </a>
                 {% endfor %}
             </div>
@@ -134,34 +134,36 @@
     {% endif %}
 
     {% if user_memberships %}
-        <section class="glass-card spaced-card elevated-card">
-            <div class="section-title-row">
-                <div>
-                    <p class="eyebrow">Your leagues</p>
+        <section class="matches-v2-leagues-panel">
+            <div>
+                <p class="eyebrow">Your leagues</p>
 
-                    <h2>Competing in</h2>
-                </div>
-
-                <a class="button secondary compact" href="{% url 'leagues' %}">
-                    Manage Leagues
-                </a>
+                <h2>Competing across {{ user_memberships|length }} league{% if user_memberships|length != 1 %}s{% endif %}</h2>
             </div>
 
-            <div class="pill-list">
+            <div class="matches-v2-league-list">
                 {% for membership in user_memberships %}
-                    <a class="soft-pill" href="{% url 'league_detail' membership.group.id %}">
+                    <a href="{% url 'league_detail' membership.group.id %}">
                         {{ membership.group.name }}
                     </a>
                 {% endfor %}
             </div>
+
+            <a class="button secondary compact" href="{% url 'leagues' %}">
+                Manage Leagues
+            </a>
         </section>
     {% else %}
-        <section class="glass-card spaced-card elevated-card">
-            <h2>No league membership found</h2>
+        <section class="matches-v2-leagues-panel">
+            <div>
+                <p class="eyebrow">Your leagues</p>
 
-            <p>
-                Your account is not currently linked to a league. Join a league using a league code.
-            </p>
+                <h2>No league membership found</h2>
+
+                <p>
+                    Join a league before submitting predictions.
+                </p>
+            </div>
 
             <a class="button primary" href="{% url 'leagues' %}">
                 Join a League
@@ -169,18 +171,18 @@
         </section>
     {% endif %}
 
-    <section class="fixture-board-shell" id="fixture-board">
-        <div class="fixture-board-toolbar">
+    <section class="matches-v2-fixture-board" id="fixture-board">
+        <div class="matches-v2-filter-bar">
             <div>
-                <p class="eyebrow">Fixture filters</p>
+                <p class="eyebrow">Fixtures</p>
 
-                <h2>Find the matches that matter now</h2>
+                <h2>Match list</h2>
             </div>
 
-            <div class="match-filter-tabs" role="tablist" aria-label="Match filters">
+            <div class="matches-v2-filter-tabs" role="tablist" aria-label="Match filters">
                 {% for tab in filter_tabs %}
                     <button
-                        class="match-filter-tab {% if tab.key == 'all' %}active{% endif %}"
+                        class="matches-v2-filter-tab {% if tab.key == 'all' %}active{% endif %}"
                         type="button"
                         data-filter="{{ tab.key }}"
                     >
@@ -192,10 +194,10 @@
         </div>
 
         {% if matches %}
-            <div class="fixture-card-list" id="fixture-card-list">
+            <div class="matches-v2-card-list" id="fixture-card-list">
                 {% for match in matches %}
                     <article
-                        class="match-card fixture-match-card"
+                        class="matches-v2-card"
                         id="match-{{ match.id }}"
                         data-match-card="true"
                         data-open="{% if match.voting_is_open %}true{% else %}false{% endif %}"
@@ -203,35 +205,45 @@
                         data-closing="{% if match.is_closing_soon %}true{% else %}false{% endif %}"
                         data-finished="{% if match.status == 'finished' %}true{% else %}false{% endif %}"
                         data-upcoming="{% if match.status == 'scheduled' and not match.voting_is_open %}true{% else %}false{% endif %}"
+                        data-home-team="{{ match.home_team }}"
+                        data-away-team="{{ match.away_team }}"
+                        data-home-flag-url="{{ match.home_team_flag_url }}"
+                        data-away-flag-url="{{ match.away_team_flag_url }}"
                     >
-                        <div class="match-card-header">
+                        <div class="matches-v2-card-top">
                             <div>
-                                <p class="match-stage">{{ match.get_stage_display }}</p>
+                                <p class="matches-v2-stage">{{ match.get_stage_display }}</p>
 
-                                <h2 class="match-title-with-flags">
-                                    <span class="team-title-block">
+                                <div class="matches-v2-team-row">
+                                    <div class="matches-v2-team-block">
                                         {% if match.home_team_flag_url %}
-                                            <img class="team-flag-img large" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                            <span class="matches-v2-flag-frame">
+                                                <img src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                            </span>
                                         {% endif %}
+
                                         <span>{{ match.home_team }}</span>
-                                    </span>
+                                    </div>
 
-                                    <span class="versus">vs</span>
+                                    <span class="matches-v2-versus">vs</span>
 
-                                    <span class="team-title-block">
+                                    <div class="matches-v2-team-block">
                                         {% if match.away_team_flag_url %}
-                                            <img class="team-flag-img large" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                            <span class="matches-v2-flag-frame">
+                                                <img src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                            </span>
                                         {% endif %}
-                                        <span>{{ match.away_team }}</span>
-                                    </span>
-                                </h2>
 
-                                <p class="match-kickoff">
-                                    Kickoff: {{ match.kickoff_time|date:"D, d M Y H:i" }}
+                                        <span>{{ match.away_team }}</span>
+                                    </div>
+                                </div>
+
+                                <p class="matches-v2-kickoff">
+                                    {{ match.kickoff_time|date:"D, d M Y H:i" }}
                                 </p>
                             </div>
 
-                            <div class="match-status-stack">
+                            <div class="matches-v2-status-cluster">
                                 <span class="status-pill status-{{ match.status }}">
                                     {{ match.get_status_display }}
                                 </span>
@@ -248,7 +260,7 @@
                             </div>
                         </div>
 
-                        <div class="match-meta-grid">
+                        <div class="matches-v2-info-strip">
                             <div>
                                 <span>Score</span>
                                 <strong>{{ match.score_display }}</strong>
@@ -268,31 +280,32 @@
                         </div>
 
                         {% if match.voting_is_open and user_memberships %}
-                            <div class="prediction-panel">
-                                <div class="prediction-panel-copy">
-                                    <h3>Your prediction</h3>
+                            <div class="matches-v2-prediction-panel">
+                                <div class="matches-v2-panel-heading">
+                                    <div>
+                                        <p class="eyebrow">Your prediction</p>
+
+                                        <h3>
+                                            {% if match.user_prediction %}
+                                                Current pick:
+                                                <span class="current-prediction-text">{{ match.user_prediction.get_prediction_display }}</span>
+                                            {% else %}
+                                                Current pick:
+                                                <span class="current-prediction-text">Not selected yet</span>
+                                            {% endif %}
+                                        </h3>
+                                    </div>
 
                                     <p>
-                                        {% if match.user_prediction %}
-                                            Current pick:
-                                            <strong class="current-prediction-text">
-                                                {{ match.user_prediction.get_prediction_display }}
-                                            </strong>.
-                                        {% else %}
-                                            Current pick:
-                                            <strong class="current-prediction-text">
-                                                Not selected yet
-                                            </strong>.
-                                        {% endif %}
-                                        This counts in all of your leagues.
+                                        Your choice is saved once and used across all of your leagues.
                                     </p>
                                 </div>
 
-                                <form class="prediction-form" method="post" action="{% url 'submit_prediction' match.id %}">
+                                <form class="prediction-form matches-v2-prediction-options" method="post" action="{% url 'submit_prediction' match.id %}">
                                     {% csrf_token %}
 
                                     <button
-                                        class="prediction-option {% if match.user_prediction.prediction == 'home' %}selected{% endif %}"
+                                        class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'home' %}selected{% endif %}"
                                         type="submit"
                                         name="prediction"
                                         value="home"
@@ -304,16 +317,17 @@
                                     </button>
 
                                     <button
-                                        class="prediction-option {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
+                                        class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
                                         type="submit"
                                         name="prediction"
                                         value="draw"
                                     >
+                                        <span class="draw-icon">D</span>
                                         Draw
                                     </button>
 
                                     <button
-                                        class="prediction-option {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
+                                        class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
                                         type="submit"
                                         name="prediction"
                                         value="away"
@@ -327,19 +341,20 @@
 
                                 <div class="prediction-inline-message" aria-live="polite"></div>
 
-                                <div class="trend-locked-note">
-                                    Prediction trends will appear after voting closes for this match.
+                                <div class="matches-v2-muted-note">
+                                    Prediction trends will appear after voting closes for this match. League picks unlock after kickoff so voting stays fair.
                                 </div>
                             </div>
                         {% else %}
-                            <div class="locked-panel compact-locked-panel">
-                                <div class="locked-summary-row">
+                            <div class="matches-v2-locked-panel">
+                                <div class="matches-v2-locked-summary">
                                     <div>
+                                        <p class="eyebrow">Your outcome</p>
+
                                         {% if match.user_prediction %}
-                                            <p>
-                                                Your pick:
-                                                <strong>{{ match.user_prediction.get_prediction_display }}</strong>
-                                            </p>
+                                            <h3>
+                                                {{ match.user_prediction.get_prediction_display }}
+                                            </h3>
 
                                             {% if match.has_result %}
                                                 <p>
@@ -348,26 +363,27 @@
                                                 </p>
                                             {% endif %}
                                         {% else %}
-                                            <p>No prediction submitted for this match.</p>
+                                            <h3>No prediction submitted</h3>
                                         {% endif %}
                                     </div>
 
-                                    <p class="locked-reason">{{ match.voting_message }}</p>
+                                    <p>{{ match.voting_message }}</p>
                                 </div>
 
                                 {% if match.trends_visible %}
                                     {% if match.prediction_trends.total_predictions > 0 %}
-                                        <div class="trend-panel compact-trend-panel">
-                                            <div class="trend-panel-heading">
+                                        <div class="matches-v2-trend-card">
+                                            <div class="matches-v2-trend-header">
                                                 <div>
                                                     <p class="eyebrow">Prediction trends</p>
+
                                                     <h3>Voting split after lock</h3>
                                                 </div>
 
-                                                <div class="trend-heading-actions">
+                                                <div class="matches-v2-trend-actions">
                                                     {% if match.shared_league_pick_reveal %}
                                                         <button
-                                                            class="view-league-picks-button"
+                                                            class="view-league-picks-button matches-v2-view-picks"
                                                             type="button"
                                                             data-modal-target="league-picks-modal-{{ match.id }}"
                                                         >
@@ -381,20 +397,26 @@
                                                 </div>
                                             </div>
 
-                                            <div class="trend-list refined-trend-list">
+                                            <div class="matches-v2-trend-list">
                                                 {% for option in match.prediction_trends.options %}
-                                                    <div class="trend-row refined-trend-row">
-                                                        <div class="trend-option-line">
-                                                            <div class="trend-option-name">
+                                                    <div class="matches-v2-trend-option">
+                                                        <div class="matches-v2-trend-option-top">
+                                                            <div class="matches-v2-trend-name">
                                                                 {% if option.key == 'home' %}
                                                                     {% if match.home_team_flag_url %}
-                                                                        <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                                                        <span class="matches-v2-mini-flag-frame">
+                                                                            <img src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                                                        </span>
                                                                     {% endif %}
+
                                                                     <span>{{ match.home_team }} win</span>
                                                                 {% elif option.key == 'away' %}
                                                                     {% if match.away_team_flag_url %}
-                                                                        <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                                                        <span class="matches-v2-mini-flag-frame">
+                                                                            <img src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                                                        </span>
                                                                     {% endif %}
+
                                                                     <span>{{ match.away_team }} win</span>
                                                                 {% else %}
                                                                     <span class="draw-icon">D</span>
@@ -405,13 +427,13 @@
                                                             <strong>{{ option.percentage }}%</strong>
                                                         </div>
 
-                                                        <div class="trend-track">
+                                                        <div class="trend-track matches-v2-trend-track">
                                                             <div class="trend-fill" style="--trend-width: {{ option.percentage }}%;"></div>
                                                         </div>
 
-                                                        <div class="trend-count">
+                                                        <p>
                                                             {{ option.count }} pick{% if option.count != 1 %}s{% endif %}
-                                                        </div>
+                                                        </p>
                                                     </div>
                                                 {% endfor %}
                                             </div>
@@ -438,7 +460,8 @@
                                                             </h3>
 
                                                             <p>
-                                                                See what others in your league picked!
+                                                                People who share at least one league with you.
+                                                                Duplicate league members are only shown once.
                                                             </p>
                                                         </div>
 
@@ -506,12 +529,12 @@
                                             </div>
                                         {% endif %}
                                     {% else %}
-                                        <div class="trend-locked-note">
+                                        <div class="matches-v2-muted-note">
                                             Voting has closed, but no predictions were submitted for this match.
                                         </div>
                                     {% endif %}
                                 {% else %}
-                                    <div class="trend-locked-note">
+                                    <div class="matches-v2-muted-note">
                                         Prediction trends and league picks are hidden until kickoff so they cannot influence voting.
                                     </div>
                                 {% endif %}
@@ -550,12 +573,48 @@
     </section>
 </div>
 
+<div class="matches-v2-toast" id="matches-v2-toast" role="status" aria-live="polite" hidden>
+    <div class="matches-v2-toast-top">
+        <strong>Prediction saved</strong>
+
+        <button type="button" id="matches-v2-toast-close" aria-label="Dismiss notification">
+            ×
+        </button>
+    </div>
+
+    <p id="matches-v2-toast-pick">Your pick has been saved.</p>
+
+    <div class="matches-v2-toast-teams">
+        <span class="matches-v2-toast-team">
+            <img id="matches-v2-toast-home-flag" src="" alt="" loading="lazy">
+            <span id="matches-v2-toast-home-team"></span>
+        </span>
+
+        <span class="matches-v2-toast-versus">vs</span>
+
+        <span class="matches-v2-toast-team">
+            <img id="matches-v2-toast-away-flag" src="" alt="" loading="lazy">
+            <span id="matches-v2-toast-away-team"></span>
+        </span>
+    </div>
+</div>
+
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        const filterButtons = document.querySelectorAll("[data-filter]");
+        const filterButtons = document.querySelectorAll(".matches-v2-filter-tab, .js-activate-filter");
         const matchCards = document.querySelectorAll("[data-match-card='true']");
         const emptyState = document.getElementById("filter-empty-state");
         const fixtureBoard = document.getElementById("fixture-board");
+
+        const toast = document.getElementById("matches-v2-toast");
+        const toastClose = document.getElementById("matches-v2-toast-close");
+        const toastPick = document.getElementById("matches-v2-toast-pick");
+        const toastHomeFlag = document.getElementById("matches-v2-toast-home-flag");
+        const toastAwayFlag = document.getElementById("matches-v2-toast-away-flag");
+        const toastHomeTeam = document.getElementById("matches-v2-toast-home-team");
+        const toastAwayTeam = document.getElementById("matches-v2-toast-away-team");
+
+        let toastTimer = null;
 
         function cardMatchesFilter(card, filterValue) {
             if (filterValue === "all") {
@@ -585,26 +644,36 @@
             return true;
         }
 
+        function setElementVisible(element, shouldShow) {
+            if (!element) {
+                return;
+            }
+
+            element.hidden = !shouldShow;
+            element.classList.toggle("is-filtered-out", !shouldShow);
+            element.style.display = shouldShow ? "" : "none";
+        }
+
         function activateFilter(filterValue, shouldScroll) {
             let visibleCount = 0;
 
             filterButtons.forEach(function (button) {
-                button.classList.toggle("active", button.dataset.filter === filterValue);
+                if (button.classList.contains("matches-v2-filter-tab")) {
+                    button.classList.toggle("active", button.dataset.filter === filterValue);
+                }
             });
 
             matchCards.forEach(function (card) {
                 const shouldShow = cardMatchesFilter(card, filterValue);
 
-                card.hidden = !shouldShow;
+                setElementVisible(card, shouldShow);
 
                 if (shouldShow) {
                     visibleCount += 1;
                 }
             });
 
-            if (emptyState) {
-                emptyState.hidden = visibleCount !== 0;
-            }
+            setElementVisible(emptyState, visibleCount === 0);
 
             if (shouldScroll && fixtureBoard) {
                 fixtureBoard.scrollIntoView({
@@ -612,6 +681,51 @@
                     block: "start"
                 });
             }
+        }
+
+        function hideToast() {
+            if (!toast) {
+                return;
+            }
+
+            toast.classList.remove("is-visible");
+
+            window.setTimeout(function () {
+                toast.hidden = true;
+            }, 240);
+        }
+
+        function showPredictionToast(matchCard, predictionDisplay) {
+            if (!toast || !matchCard) {
+                return;
+            }
+
+            if (toastTimer) {
+                window.clearTimeout(toastTimer);
+            }
+
+            toastPick.textContent = "Your pick: " + predictionDisplay;
+
+            toastHomeTeam.textContent = matchCard.dataset.homeTeam || "";
+            toastAwayTeam.textContent = matchCard.dataset.awayTeam || "";
+
+            toastHomeFlag.src = matchCard.dataset.homeFlagUrl || "";
+            toastAwayFlag.src = matchCard.dataset.awayFlagUrl || "";
+
+            toastHomeFlag.alt = (matchCard.dataset.homeTeam || "Home team") + " flag";
+            toastAwayFlag.alt = (matchCard.dataset.awayTeam || "Away team") + " flag";
+
+            toast.hidden = false;
+
+            window.requestAnimationFrame(function () {
+                toast.classList.add("is-visible");
+            });
+
+            toastTimer = window.setTimeout(hideToast, 3800);
+        }
+
+        if (toastClose) {
+            toastClose.addEventListener("click", hideToast);
         }
 
         filterButtons.forEach(function (button) {
@@ -629,7 +743,8 @@
                 event.preventDefault();
 
                 const clickedButton = event.submitter;
-                const panel = form.closest(".prediction-panel");
+                const panel = form.closest(".matches-v2-prediction-panel");
+                const matchCard = form.closest("[data-match-card='true']");
                 const messageBox = panel.querySelector(".prediction-inline-message");
                 const currentPredictionText = panel.querySelector(".current-prediction-text");
                 const optionButtons = form.querySelectorAll(".prediction-option");
@@ -674,8 +789,7 @@
 
                     currentPredictionText.textContent = data.prediction_display;
 
-                    messageBox.textContent = data.message;
-                    messageBox.classList.add("success");
+                    showPredictionToast(matchCard, data.prediction_display);
                 } catch (error) {
                     messageBox.textContent = error.message;
                     messageBox.classList.add("error");
