@@ -3289,6 +3289,120 @@ button.button,
     line-height: 1.5;
 }
 
+.my-picks-stats-card {
+    display: grid;
+    gap: 22px;
+    padding: 26px;
+    border-radius: var(--mp-radius-2xl);
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96));
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    box-shadow: var(--mp-shadow-card);
+}
+
+.my-picks-stat-grid,
+.compare-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.my-picks-stat-card,
+.compare-summary-card,
+.my-picks-stat-detail-card {
+    display: grid;
+    gap: 10px;
+    align-content: center;
+    min-height: 112px;
+    padding: 18px;
+    border-radius: var(--mp-radius-lg);
+    background: rgba(248, 250, 252, 0.95);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.my-picks-stat-card span,
+.compare-summary-card span,
+.my-picks-stat-detail-card span {
+    color: var(--mp-slate-500);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+}
+
+.my-picks-stat-card strong,
+.compare-summary-card strong,
+.my-picks-stat-detail-card strong {
+    color: var(--mp-navy-800);
+    font-size: 30px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: -0.055em;
+}
+
+.my-picks-stat-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.my-picks-stat-detail-card p {
+    margin: 0;
+    color: var(--mp-slate-500);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.my-picks-form-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.my-picks-form-dot {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(248, 250, 252, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    color: var(--mp-slate-500);
+    font-size: 13px;
+    font-weight: 950;
+}
+
+.my-picks-form-dot.is-win {
+    background: rgba(220, 252, 231, 0.92);
+    border-color: rgba(34, 197, 94, 0.30);
+    color: var(--mp-green-700);
+}
+
+.my-picks-form-dot.is-loss {
+    background: rgba(254, 226, 226, 0.88);
+    border-color: rgba(239, 68, 68, 0.24);
+    color: #b91c1c;
+}
+
+.compare-summary-card.is-winner {
+    background:
+        linear-gradient(145deg, rgba(240, 253, 244, 0.96), rgba(239, 246, 255, 0.92));
+    border-color: rgba(34, 197, 94, 0.26);
+}
+
+.compare-empty-state {
+    margin: 0;
+    padding: 16px 18px;
+    border-radius: var(--mp-radius-lg);
+    background: rgba(248, 250, 252, 0.95);
+    border: 1px dashed rgba(148, 163, 184, 0.38);
+    color: var(--mp-slate-500);
+    font-size: 15px;
+    font-weight: 850;
+}
+
 .compare-picks-form {
     display: flex;
     flex-wrap: wrap;
@@ -3480,6 +3594,12 @@ button.button,
 
     .leaderboard-v2-table-card {
         gap: 24px !important;
+    }
+
+    .my-picks-stat-grid,
+    .compare-summary-grid,
+    .my-picks-stat-detail-grid {
+        grid-template-columns: 1fr;
     }
 }
 

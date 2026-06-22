@@ -621,6 +621,82 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Compare Picks")
         self.assertContains(response, "Compare Picks only uses matches where voting is locked or finished.")
 
+    def test_my_picks_shows_player_stats_summary_for_self(self):
+        open_match = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_delta_hours=24,
+        )
+        correct_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=open_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=correct_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Player stats")
+        self.assertContains(response, "Includes open picks")
+        self.assertContains(response, "Open picks")
+        self.assertContains(response, "Total points")
+        self.assertContains(response, "3")
+        self.assertContains(response, "100%")
+        self.assertContains(response, "my-picks-form-dot is-win")
+
+    def test_public_user_stats_do_not_include_open_picks(self):
+        open_match = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_delta_hours=24,
+        )
+        finished_match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=0,
+        )
+
+        Prediction.objects.create(
+            user=self.friend,
+            match=open_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("user_picks", args=[self.friend.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Player stats")
+        self.assertContains(response, "Public picks only")
+        self.assertContains(response, "France")
+        self.assertNotContains(response, "Canada")
+        self.assertNotContains(response, "Open picks")
+
     def test_compare_picks_does_not_expose_active_open_picks(self):
         open_match = self.create_match(
             home_team="Canada",
@@ -726,6 +802,90 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "compare-pick-cell is-result-match")
         self.assertContains(response, "compare-pick-cell is-result-different")
+
+    def test_compare_picks_summary_counts_locked_and_finished_matches(self):
+        shared_correct_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-4,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        split_result_match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-3,
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+        )
+        locked_match = self.create_match(
+            home_team="Spain",
+            away_team="Portugal",
+            kickoff_delta_hours=-1,
+        )
+        open_match = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_delta_hours=24,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=shared_correct_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=shared_correct_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=split_result_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=split_result_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=locked_match,
+            prediction=Prediction.PREDICTION_DRAW,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=locked_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=open_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=open_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(
+            f"{reverse('my_picks')}?tab=compare&compare_user_id={self.friend.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Matches compared")
+        self.assertContains(response, "Same picks")
+        self.assertContains(response, "Different picks")
+        self.assertContains(response, "Head-to-head winner")
+        self.assertContains(response, "friend")
+        self.assertContains(response, "Spain")
+        self.assertNotContains(response, "Canada")
 
     def test_leaderboard_calculates_correct_and_incorrect_predictions(self):
         finished_match = self.create_match(

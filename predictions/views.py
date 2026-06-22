@@ -784,6 +784,115 @@ def get_prediction_result_class(prediction):
     return "is-result-different"
 
 
+def format_percentage(value, total):
+    if total <= 0:
+        return "0%"
+
+    percentage = round((value / total) * 100, 1)
+
+    if percentage.is_integer():
+        return f"{int(percentage)}%"
+
+    return f"{percentage}%"
+
+
+def build_player_stats(predictions, include_open_stats):
+    finished_matches_count = len(
+        [
+            match
+            for match in Match.objects.filter(status=Match.STATUS_FINISHED).order_by(
+                "kickoff_time"
+            )
+            if match.has_result
+        ]
+    )
+    total_points = 0
+    correct_picks = 0
+    finished_picks = 0
+    open_picks = 0
+    draw_picks = 0
+    picked_team_counts = {}
+    recent_form = []
+
+    for prediction in predictions:
+        match = prediction.match
+        total_points += prediction.points_awarded
+
+        if prediction.prediction == Prediction.PREDICTION_DRAW:
+            draw_picks += 1
+        elif prediction.prediction == Prediction.PREDICTION_HOME:
+            picked_team_counts[match.home_team] = (
+                picked_team_counts.get(match.home_team, 0) + 1
+            )
+        elif prediction.prediction == Prediction.PREDICTION_AWAY:
+            picked_team_counts[match.away_team] = (
+                picked_team_counts.get(match.away_team, 0) + 1
+            )
+
+        if getattr(prediction, "voting_is_open", False):
+            open_picks += 1
+
+        if match.has_result:
+            finished_picks += 1
+
+            if prediction.prediction == match.result:
+                correct_picks += 1
+                form_label = "W"
+                form_class = "is-win"
+            else:
+                form_label = "L"
+                form_class = "is-loss"
+
+            recent_form.append(
+                {
+                    "label": form_label,
+                    "class": form_class,
+                    "match": match,
+                }
+            )
+
+    incorrect_picks = finished_picks - correct_picks
+
+    if incorrect_picks < 0:
+        incorrect_picks = 0
+
+    missed_picks = finished_matches_count - finished_picks
+
+    if missed_picks < 0:
+        missed_picks = 0
+
+    favourite_team = None
+
+    if picked_team_counts:
+        favourite_team, favourite_team_count = sorted(
+            picked_team_counts.items(),
+            key=lambda item: (-item[1], item[0].lower()),
+        )[0]
+    else:
+        favourite_team_count = 0
+
+    recent_form = sorted(
+        recent_form,
+        key=lambda item: item["match"].kickoff_time,
+        reverse=True,
+    )[:5]
+
+    return {
+        "total_points": total_points,
+        "accuracy": format_percentage(correct_picks, finished_picks),
+        "correct_picks": correct_picks,
+        "incorrect_picks": incorrect_picks,
+        "missed_picks": missed_picks,
+        "open_picks": open_picks,
+        "show_open_picks": include_open_stats,
+        "finished_picks": finished_picks,
+        "draw_pick_rate": format_percentage(draw_picks, len(predictions)),
+        "favourite_team": favourite_team,
+        "favourite_team_count": favourite_team_count,
+        "recent_form": recent_form,
+    }
+
+
 def decorate_pick_history_predictions(predictions, can_edit):
     for prediction in predictions:
         match = prediction.match
@@ -843,6 +952,58 @@ def build_compare_rows(user_a, user_b):
         )
 
     return compare_rows
+
+
+def build_compare_summary(compare_rows, user_a, user_b):
+    matches_compared = len(compare_rows)
+    same_picks = 0
+    user_a_correct = 0
+    user_b_correct = 0
+    both_correct = 0
+    both_incorrect = 0
+
+    for row in compare_rows:
+        user_a_prediction = row["user_a_prediction"]
+        user_b_prediction = row["user_b_prediction"]
+        match = row["match"]
+
+        if user_a_prediction.prediction == user_b_prediction.prediction:
+            same_picks += 1
+
+        if not match.has_result:
+            continue
+
+        user_a_was_correct = user_a_prediction.prediction == match.result
+        user_b_was_correct = user_b_prediction.prediction == match.result
+
+        if user_a_was_correct:
+            user_a_correct += 1
+
+        if user_b_was_correct:
+            user_b_correct += 1
+
+        if user_a_was_correct and user_b_was_correct:
+            both_correct += 1
+        elif not user_a_was_correct and not user_b_was_correct:
+            both_incorrect += 1
+
+    head_to_head_winner = ""
+
+    if user_a_correct > user_b_correct:
+        head_to_head_winner = user_a.username
+    elif user_b_correct > user_a_correct:
+        head_to_head_winner = user_b.username
+
+    return {
+        "matches_compared": matches_compared,
+        "same_picks": same_picks,
+        "different_picks": matches_compared - same_picks,
+        "user_a_correct": user_a_correct,
+        "user_b_correct": user_b_correct,
+        "both_correct": both_correct,
+        "both_incorrect": both_incorrect,
+        "head_to_head_winner": head_to_head_winner,
+    }
 
 
 def filter_matches(matches_list, selected_filter):
@@ -1132,6 +1293,7 @@ def my_picks(request):
         ),
         can_edit=True,
     )
+    player_stats = build_player_stats(predictions, include_open_stats=True)
 
     compare_user_options = list(
         User.objects.filter(predictions__isnull=False)
@@ -1143,6 +1305,7 @@ def my_picks(request):
     selected_compare_user = None
     selected_compare_user_id = request.GET.get("compare_user_id")
     compare_rows = []
+    compare_summary = None
 
     if selected_compare_user_id:
         selected_compare_user = next(
@@ -1156,12 +1319,18 @@ def my_picks(request):
 
     if selected_compare_user:
         compare_rows = build_compare_rows(request.user, selected_compare_user)
+        compare_summary = build_compare_summary(
+            compare_rows,
+            request.user,
+            selected_compare_user,
+        )
 
     return render(
         request,
         "predictions/my_picks.html",
         {
             "predictions": predictions,
+            "player_stats": player_stats,
             "selected_tab": selected_tab,
             "viewed_user": request.user,
             "is_own_picks": True,
@@ -1173,6 +1342,7 @@ def my_picks(request):
             "selected_compare_user": selected_compare_user,
             "selected_compare_user_id": selected_compare_user_id or "",
             "compare_rows": compare_rows,
+            "compare_summary": compare_summary,
         },
     )
 
@@ -1201,6 +1371,7 @@ def user_picks(request, user_id):
         predictions_queryset,
         can_edit=is_own_picks,
     )
+    player_stats = build_player_stats(predictions, include_open_stats=is_own_picks)
 
     if is_own_picks:
         page_title = "My Picks"
@@ -1218,6 +1389,7 @@ def user_picks(request, user_id):
         "predictions/my_picks.html",
         {
             "predictions": predictions,
+            "player_stats": player_stats,
             "selected_tab": "history",
             "viewed_user": viewed_user,
             "is_own_picks": is_own_picks,
@@ -1229,6 +1401,7 @@ def user_picks(request, user_id):
             "selected_compare_user": None,
             "selected_compare_user_id": "",
             "compare_rows": [],
+            "compare_summary": None,
         },
     )
 

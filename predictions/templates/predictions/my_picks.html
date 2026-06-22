@@ -33,6 +33,107 @@
     </nav>
 {% endif %}
 
+{% if player_stats and selected_tab == 'history' %}
+<section class="my-picks-stats-card" aria-label="Player stats summary">
+    <div class="leaderboard-v2-table-heading">
+        <div>
+            <p class="eyebrow">Player stats</p>
+
+            <h2>
+                {% if is_own_picks %}
+                    Your form guide
+                {% else %}
+                    {{ viewed_user.username }}'s visible form
+                {% endif %}
+            </h2>
+        </div>
+
+        <span class="leaderboard-v2-context-pill">
+            {% if is_own_picks %}
+                Includes open picks
+            {% else %}
+                Public picks only
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="my-picks-stat-grid">
+        <article class="my-picks-stat-card">
+            <span>Total points</span>
+            <strong>{{ player_stats.total_points }}</strong>
+        </article>
+
+        <article class="my-picks-stat-card">
+            <span>Accuracy</span>
+            <strong>{{ player_stats.accuracy }}</strong>
+        </article>
+
+        <article class="my-picks-stat-card">
+            <span>Correct picks</span>
+            <strong>{{ player_stats.correct_picks }}</strong>
+        </article>
+
+        <article class="my-picks-stat-card">
+            <span>Incorrect picks</span>
+            <strong>{{ player_stats.incorrect_picks }}</strong>
+        </article>
+
+        <article class="my-picks-stat-card">
+            <span>Missed picks</span>
+            <strong>{{ player_stats.missed_picks }}</strong>
+        </article>
+
+        {% if player_stats.show_open_picks %}
+            <article class="my-picks-stat-card">
+                <span>Open picks</span>
+                <strong>{{ player_stats.open_picks }}</strong>
+            </article>
+        {% endif %}
+
+        <article class="my-picks-stat-card">
+            <span>Finished picks</span>
+            <strong>{{ player_stats.finished_picks }}</strong>
+        </article>
+
+        <article class="my-picks-stat-card">
+            <span>Draw pick rate</span>
+            <strong>{{ player_stats.draw_pick_rate }}</strong>
+        </article>
+    </div>
+
+    <div class="my-picks-stat-detail-grid">
+        <article class="my-picks-stat-detail-card">
+            <span>Favourite team picked</span>
+            <strong>
+                {% if player_stats.favourite_team %}
+                    {{ player_stats.favourite_team }}
+                {% else %}
+                    No team picks yet
+                {% endif %}
+            </strong>
+
+            {% if player_stats.favourite_team %}
+                <p>{{ player_stats.favourite_team_count }} pick{{ player_stats.favourite_team_count|pluralize }}</p>
+            {% endif %}
+        </article>
+
+        <article class="my-picks-stat-detail-card">
+            <span>Recent form</span>
+
+            <div class="my-picks-form-strip" aria-label="Recent finished pick form">
+                {% for item in player_stats.recent_form %}
+                    <span class="my-picks-form-dot {{ item.class }}" title="{{ item.match.display_name_plain }}">
+                        {{ item.label }}
+                    </span>
+                {% empty %}
+                    <span class="my-picks-form-dot is-neutral">&ndash;</span>
+                {% endfor %}
+            </div>
+        </article>
+    </div>
+</section>
+{% endif %}
+
 {% if selected_tab == 'compare' and is_own_picks %}
 <section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card compare-picks-card">
     <div class="leaderboard-v2-table-heading">
@@ -70,6 +171,62 @@
     </form>
 
     {% if selected_compare_user %}
+        {% if compare_summary %}
+            <div class="compare-summary-grid" aria-label="Compare picks summary">
+                <article class="compare-summary-card">
+                    <span>Matches compared</span>
+                    <strong>{{ compare_summary.matches_compared }}</strong>
+                </article>
+
+                <article class="compare-summary-card">
+                    <span>Same picks</span>
+                    <strong>{{ compare_summary.same_picks }}</strong>
+                </article>
+
+                <article class="compare-summary-card">
+                    <span>Different picks</span>
+                    <strong>{{ compare_summary.different_picks }}</strong>
+                </article>
+
+                <article class="compare-summary-card">
+                    <span>{{ request.user.username }} correct</span>
+                    <strong>{{ compare_summary.user_a_correct }}</strong>
+                </article>
+
+                <article class="compare-summary-card">
+                    <span>{{ selected_compare_user.username }} correct</span>
+                    <strong>{{ compare_summary.user_b_correct }}</strong>
+                </article>
+
+                <article class="compare-summary-card">
+                    <span>Both correct</span>
+                    <strong>{{ compare_summary.both_correct }}</strong>
+                </article>
+
+                <article class="compare-summary-card">
+                    <span>Both incorrect</span>
+                    <strong>{{ compare_summary.both_incorrect }}</strong>
+                </article>
+
+                <article class="compare-summary-card is-winner">
+                    <span>Head-to-head winner</span>
+                    <strong>
+                        {% if compare_summary.head_to_head_winner %}
+                            {{ compare_summary.head_to_head_winner }}
+                        {% else %}
+                            Level
+                        {% endif %}
+                    </strong>
+                </article>
+            </div>
+        {% endif %}
+
+        {% if not compare_rows %}
+            <p class="compare-empty-state">
+                No shared locked or finished picks are available for these players yet.
+            </p>
+        {% endif %}
+
         <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
             <table class="leaderboard-table leaderboard-v2-table my-picks-table compare-picks-table">
                 <thead>
