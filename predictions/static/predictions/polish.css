@@ -3238,6 +3238,76 @@ button.button,
     font-weight: 950;
 }
 
+.leaderboard-user-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.leaderboard-user-link:hover strong {
+    color: var(--mp-blue-600);
+}
+
+.my-picks-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.my-picks-tabs a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 10px 16px;
+    border-radius: var(--mp-radius-pill);
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(148, 163, 184, 0.30);
+    color: var(--mp-navy-800);
+    font-size: 14px;
+    font-weight: 850;
+    text-decoration: none;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.my-picks-tabs a.active {
+    background: var(--mp-green-50);
+    border-color: rgba(22, 163, 74, 0.38);
+    color: var(--mp-green-700);
+}
+
+.my-picks-readonly-note {
+    margin: 0;
+    color: var(--mp-slate-500);
+    font-weight: 750;
+    line-height: 1.5;
+}
+
+.compare-picks-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+}
+
+.compare-picks-form label {
+    display: inline-flex;
+    align-items: center;
+    min-height: 42px;
+    color: var(--mp-navy-800);
+    font-size: 14px;
+    font-weight: 850;
+}
+
+.compare-picks-form select {
+    min-height: 42px;
+    min-width: 230px;
+    padding: 10px 12px;
+    border-radius: var(--mp-radius-md);
+    font: inherit;
+    font-weight: 650;
+}
+
 .leaderboard-v2-table.my-picks-table tbody tr.is-result-match {
     background: rgba(220, 252, 231, 0.86);
 }
@@ -3272,6 +3342,25 @@ button.button,
 .my-picks-table .my-picks-status-pill,
 .my-picks-table .my-picks-locked-text {
     font-weight: 750;
+}
+
+.compare-picks-table .compare-pick-cell {
+    border-radius: 0;
+}
+
+.compare-picks-table .compare-pick-cell.is-result-match {
+    background: rgba(220, 252, 231, 0.86);
+    color: var(--mp-green-700);
+}
+
+.compare-picks-table .compare-pick-cell.is-result-different {
+    background: rgba(254, 226, 226, 0.82);
+    color: #b91c1c;
+}
+
+.compare-picks-table .compare-pick-cell.is-neutral {
+    background: rgba(248, 250, 252, 0.92);
+    color: var(--mp-slate-700);
 }
 
 .leaderboard-v2-table .rank-pill {
@@ -3312,6 +3401,20 @@ button.button,
 }
 
 .leaderboard-v2-table.my-picks-table td:nth-child(3) {
+    min-width: 250px;
+}
+
+.leaderboard-v2-table.compare-picks-table td:nth-child(1),
+.leaderboard-v2-table.compare-picks-table td:nth-child(2),
+.leaderboard-v2-table.compare-picks-table td:nth-child(3),
+.leaderboard-v2-table.compare-picks-table td:nth-child(4) {
+    color: var(--mp-slate-700);
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: 0;
+}
+
+.leaderboard-v2-table.compare-picks-table td:nth-child(1) {
     min-width: 250px;
 }
 

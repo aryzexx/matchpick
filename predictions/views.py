@@ -628,6 +628,7 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
 
         leaderboard_rows.append(
             {
+                "user_id": user.id,
                 "username": user.username,
                 "role": role,
                 "total_points": total_points,
@@ -767,6 +768,81 @@ def get_safe_redirect_url(request, fallback_url_name="matches"):
         return redirect_target
 
     return reverse(fallback_url_name)
+
+
+def pick_is_publicly_visible(match):
+    return match.status == Match.STATUS_FINISHED or match.kickoff_time <= timezone.now()
+
+
+def get_prediction_result_class(prediction):
+    if not prediction.match.has_result:
+        return ""
+
+    if prediction.prediction == prediction.match.result:
+        return "is-result-match"
+
+    return "is-result-different"
+
+
+def decorate_pick_history_predictions(predictions, can_edit):
+    for prediction in predictions:
+        match = prediction.match
+        voting_is_open, voting_message = get_prediction_availability(match)
+
+        prediction.voting_is_open = voting_is_open
+        prediction.voting_message = voting_message
+        prediction.status_label = get_match_timing_label(match, voting_is_open)
+        prediction.result_row_class = get_prediction_result_class(prediction)
+        prediction.can_edit = can_edit and voting_is_open
+
+    return predictions
+
+
+def get_compare_pick_class(prediction):
+    if prediction is None or not prediction.match.has_result:
+        return "is-neutral"
+
+    if prediction.prediction == prediction.match.result:
+        return "is-result-match"
+
+    return "is-result-different"
+
+
+def build_compare_rows(user_a, user_b):
+    user_a_predictions = (
+        Prediction.objects.filter(user=user_a)
+        .select_related("match")
+        .order_by("match__kickoff_time", "match__home_team")
+    )
+
+    user_b_predictions_by_match_id = {
+        prediction.match_id: prediction
+        for prediction in Prediction.objects.filter(user=user_b).select_related("match")
+    }
+
+    compare_rows = []
+
+    for user_a_prediction in user_a_predictions:
+        match = user_a_prediction.match
+        user_b_prediction = user_b_predictions_by_match_id.get(match.id)
+
+        if user_b_prediction is None:
+            continue
+
+        if not pick_is_publicly_visible(match):
+            continue
+
+        compare_rows.append(
+            {
+                "match": match,
+                "user_a_prediction": user_a_prediction,
+                "user_b_prediction": user_b_prediction,
+                "user_a_pick_class": get_compare_pick_class(user_a_prediction),
+                "user_b_pick_class": get_compare_pick_class(user_b_prediction),
+            }
+        )
+
+    return compare_rows
 
 
 def filter_matches(matches_list, selected_filter):
@@ -1045,32 +1121,116 @@ def matches(request):
 
 @login_required
 def my_picks(request):
-    predictions = list(
-        Prediction.objects.filter(user=request.user)
-        .select_related("match")
-        .order_by("match__kickoff_time", "match__home_team")
+    selected_tab = request.GET.get("tab", "history")
+
+    if selected_tab not in {"history", "compare"}:
+        selected_tab = "history"
+
+    predictions = decorate_pick_history_predictions(
+        list(
+            Prediction.objects.filter(user=request.user)
+            .select_related("match")
+            .order_by("match__kickoff_time", "match__home_team")
+        ),
+        can_edit=True,
     )
 
-    for prediction in predictions:
-        match = prediction.match
-        voting_is_open, voting_message = get_prediction_availability(match)
+    compare_user_options = list(
+        User.objects.filter(predictions__isnull=False)
+        .exclude(id=request.user.id)
+        .distinct()
+        .order_by("username")
+    )
 
-        prediction.voting_is_open = voting_is_open
-        prediction.voting_message = voting_message
-        prediction.status_label = get_match_timing_label(match, voting_is_open)
-        prediction.result_row_class = ""
+    selected_compare_user = None
+    selected_compare_user_id = request.GET.get("compare_user_id")
+    compare_rows = []
 
-        if match.has_result:
-            if prediction.prediction == match.result:
-                prediction.result_row_class = "is-result-match"
-            else:
-                prediction.result_row_class = "is-result-different"
+    if selected_compare_user_id:
+        selected_compare_user = next(
+            (
+                user
+                for user in compare_user_options
+                if str(user.id) == selected_compare_user_id
+            ),
+            None,
+        )
+
+    if selected_compare_user:
+        compare_rows = build_compare_rows(request.user, selected_compare_user)
 
     return render(
         request,
         "predictions/my_picks.html",
         {
             "predictions": predictions,
+            "selected_tab": selected_tab,
+            "viewed_user": request.user,
+            "is_own_picks": True,
+            "page_title": "My Picks",
+            "history_heading": "Your saved picks",
+            "history_empty_message": "You have not made any picks yet.",
+            "readonly_message": "",
+            "compare_user_options": compare_user_options,
+            "selected_compare_user": selected_compare_user,
+            "selected_compare_user_id": selected_compare_user_id or "",
+            "compare_rows": compare_rows,
+        },
+    )
+
+
+@login_required
+def user_picks(request, user_id):
+    viewed_user = get_object_or_404(User, id=user_id)
+    is_own_picks = viewed_user == request.user
+
+    predictions_queryset = (
+        Prediction.objects.filter(user=viewed_user)
+        .select_related("match")
+        .order_by("match__kickoff_time", "match__home_team")
+    )
+
+    if not is_own_picks:
+        predictions_queryset = [
+            prediction
+            for prediction in predictions_queryset
+            if pick_is_publicly_visible(prediction.match)
+        ]
+    else:
+        predictions_queryset = list(predictions_queryset)
+
+    predictions = decorate_pick_history_predictions(
+        predictions_queryset,
+        can_edit=is_own_picks,
+    )
+
+    if is_own_picks:
+        page_title = "My Picks"
+        history_heading = "Your saved picks"
+        history_empty_message = "You have not made any picks yet."
+        readonly_message = ""
+    else:
+        page_title = f"{viewed_user.username}'s past picks"
+        history_heading = f"{viewed_user.username}'s past picks"
+        history_empty_message = "No locked or finished picks are visible yet."
+        readonly_message = "Only locked and finished picks are shown for fairness."
+
+    return render(
+        request,
+        "predictions/my_picks.html",
+        {
+            "predictions": predictions,
+            "selected_tab": "history",
+            "viewed_user": viewed_user,
+            "is_own_picks": is_own_picks,
+            "page_title": page_title,
+            "history_heading": history_heading,
+            "history_empty_message": history_empty_message,
+            "readonly_message": readonly_message,
+            "compare_user_options": [],
+            "selected_compare_user": None,
+            "selected_compare_user_id": "",
+            "compare_rows": [],
         },
     )
 

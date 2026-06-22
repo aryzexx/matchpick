@@ -2,25 +2,157 @@
 
 {% block content %}
 <section class="page-heading my-picks-v2-heading">
-    <p class="eyebrow">Your prediction history</p>
+    <p class="eyebrow">
+        {% if is_own_picks %}
+            Your prediction history
+        {% else %}
+            Public prediction history
+        {% endif %}
+    </p>
 
-    <h1>My Picks</h1>
+    <h1>{{ page_title }}</h1>
 
     <p>
-        Review matches you have already picked, change open predictions, and track finished results in one simple list.
+        {% if is_own_picks %}
+            Review matches you have already picked, change open predictions, and track finished results in one simple list.
+        {% else %}
+            {{ readonly_message }}
+        {% endif %}
     </p>
 </section>
 
+{% if is_own_picks %}
+    <nav class="my-picks-tabs" aria-label="My Picks sections">
+        <a class="{% if selected_tab == 'history' %}active{% endif %}" href="{% url 'my_picks' %}?tab=history">
+            Picks History
+        </a>
+
+        <a class="{% if selected_tab == 'compare' %}active{% endif %}" href="{% url 'my_picks' %}?tab=compare">
+            Compare Picks
+        </a>
+    </nav>
+{% endif %}
+
+{% if selected_tab == 'compare' and is_own_picks %}
+<section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card compare-picks-card">
+    <div class="leaderboard-v2-table-heading">
+        <div>
+            <p class="eyebrow">Compare Picks</p>
+
+            <h2>Head-to-head picks</h2>
+        </div>
+
+        <span class="leaderboard-v2-context-pill">Locked matches only</span>
+    </div>
+
+    <p class="my-picks-readonly-note">
+        Compare Picks only uses matches where voting is locked or finished.
+    </p>
+
+    <form class="compare-picks-form" method="get" action="{% url 'my_picks' %}">
+        <input type="hidden" name="tab" value="compare">
+
+        <label for="compare-user-id">Compare with</label>
+
+        <select id="compare-user-id" name="compare_user_id">
+            <option value="">Choose a player</option>
+
+            {% for user_option in compare_user_options %}
+                <option value="{{ user_option.id }}" {% if selected_compare_user_id == user_option.id|stringformat:"s" %}selected{% endif %}>
+                    {{ user_option.username }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button class="button primary compact" type="submit">
+            Compare
+        </button>
+    </form>
+
+    {% if selected_compare_user %}
+        <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
+            <table class="leaderboard-table leaderboard-v2-table my-picks-table compare-picks-table">
+                <thead>
+                    <tr>
+                        <th>Fixture</th>
+                        <th>{{ request.user.username }} pick</th>
+                        <th>{{ selected_compare_user.username }} pick</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for row in compare_rows %}
+                        <tr>
+                            <td>
+                                <span class="my-picks-team team-inline">
+                                    {% if row.match.home_team_flag_url %}
+                                        <img class="team-flag-img" src="{{ row.match.home_team_flag_url }}" alt="{{ row.match.home_team }} flag" loading="lazy">
+                                    {% endif %}
+                                    <span>{{ row.match.home_team }}</span>
+                                </span>
+
+                                <span class="my-picks-versus">vs</span>
+
+                                <span class="my-picks-team team-inline">
+                                    {% if row.match.away_team_flag_url %}
+                                        <img class="team-flag-img" src="{{ row.match.away_team_flag_url }}" alt="{{ row.match.away_team }} flag" loading="lazy">
+                                    {% endif %}
+                                    <span>{{ row.match.away_team }}</span>
+                                </span>
+                            </td>
+
+                            <td class="compare-pick-cell {{ row.user_a_pick_class }}">
+                                {{ row.user_a_prediction.get_prediction_display }}
+                            </td>
+
+                            <td class="compare-pick-cell {{ row.user_b_pick_class }}">
+                                {{ row.user_b_prediction.get_prediction_display }}
+                            </td>
+
+                            <td>
+                                {% if row.match.has_result %}
+                                    {{ row.match.get_result_display }}
+                                {% else %}
+                                    Awaiting result
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4">
+                                No shared locked or finished picks are available for these players yet.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</section>
+{% else %}
 <section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card">
     <div class="leaderboard-v2-table-heading">
         <div>
             <p class="eyebrow">Picked matches</p>
 
-            <h2>Your saved picks</h2>
+            <h2>{{ history_heading }}</h2>
         </div>
 
-        <span class="leaderboard-v2-context-pill">Personal</span>
+        <span class="leaderboard-v2-context-pill">
+            {% if is_own_picks %}
+                Personal
+            {% else %}
+                Read-only
+            {% endif %}
+        </span>
     </div>
+
+    {% if readonly_message %}
+        <p class="my-picks-readonly-note">
+            {{ readonly_message }}
+        </p>
+    {% endif %}
 
     <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
         <table class="leaderboard-table leaderboard-v2-table my-picks-table">
@@ -78,10 +210,10 @@
                         </td>
 
                         <td>
-                            {% if prediction.voting_is_open %}
+                            {% if prediction.can_edit %}
                                 <form class="my-picks-choice-form" method="post" action="{% url 'submit_prediction' prediction.match.id %}">
                                     {% csrf_token %}
-                                    <input type="hidden" name="next" value="{% url 'my_picks' %}">
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
 
                                     <button
                                         class="my-picks-choice {% if prediction.prediction == 'home' %}selected{% endif %}"
@@ -118,7 +250,7 @@
                 {% empty %}
                     <tr>
                         <td colspan="7">
-                            You have not made any picks yet.
+                            {{ history_empty_message }}
                         </td>
                     </tr>
                 {% endfor %}
@@ -126,4 +258,5 @@
         </table>
     </div>
 </section>
+{% endif %}
 {% endblock %}

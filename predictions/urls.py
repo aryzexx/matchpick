@@ -10,6 +10,7 @@ urlpatterns = [
     path("logout/", views.user_logout, name="logout"),
     path("matches/", views.matches, name="matches"),
     path("my-picks/", views.my_picks, name="my_picks"),
+    path("users/<int:user_id>/picks/", views.user_picks, name="user_picks"),
     path(
         "matches/<int:match_id>/predict/",
         views.submit_prediction,

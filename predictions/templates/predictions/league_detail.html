@@ -135,7 +135,9 @@
                             </td>
 
                             <td>
-                                <strong>{{ row.username }}</strong>
+                                <a class="leaderboard-user-link" href="{% url 'user_picks' row.user_id %}">
+                                    <strong>{{ row.username }}</strong>
+                                </a>
 
                                 {% if row.is_current_user %}
                                     <span class="you-pill">You</span>
