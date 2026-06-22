@@ -2706,154 +2706,6 @@ button.button,
 }
 
 /* ==========================================================================
-   MatchPick v2.0 — Stage 23.2.1 Stabilisation Patch
-   ========================================================================== */
-
-/* Make JS filtering reliable even when v2 cards have explicit display rules. */
-.matches-v2-card[hidden],
-.filter-empty-state[hidden] {
-    display: none !important;
-}
-
-/* Premium prediction saved toast */
-
-.matches-v2-toast {
-    position: fixed;
-    right: 28px;
-    bottom: 28px;
-    z-index: 1200;
-    width: min(420px, calc(100vw - 32px));
-    display: grid;
-    gap: 12px;
-    padding: 18px;
-    border-radius: 24px;
-    background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.99), rgba(240, 253, 244, 0.96));
-    border: 1px solid rgba(34, 197, 94, 0.28);
-    box-shadow:
-        0 28px 80px rgba(15, 23, 42, 0.24),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
-    transform: translateY(18px);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s ease, transform 0.22s ease;
-}
-
-.matches-v2-toast.is-visible {
-    transform: translateY(0);
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.matches-v2-toast-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-}
-
-.matches-v2-toast-top strong {
-    color: var(--mp-green-700);
-    font-size: 18px;
-    letter-spacing: -0.04em;
-}
-
-.matches-v2-toast-top button {
-    display: inline-flex;
-    width: 30px;
-    height: 30px;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.08);
-    color: var(--mp-navy-800);
-    font-size: 20px;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-.matches-v2-toast p {
-    margin: 0;
-    color: var(--mp-slate-600);
-    font-size: 14px;
-    font-weight: 850;
-}
-
-.matches-v2-toast-teams {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.matches-v2-toast-team {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 9px;
-    border-radius: 999px;
-    background: white;
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    color: var(--mp-navy-800);
-    font-size: 13px;
-    font-weight: 900;
-}
-
-.matches-v2-toast-team img {
-    width: 24px;
-    height: 16px;
-    object-fit: cover;
-    border-radius: 4px;
-    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
-}
-
-.matches-v2-toast-versus {
-    color: var(--mp-slate-400);
-    font-size: 12px;
-    font-weight: 950;
-    text-transform: uppercase;
-}
-
-/* Keep inline AJAX message area only for errors. */
-.matches-v2-prediction-panel .prediction-inline-message:empty {
-    display: none;
-}
-
-.matches-v2-prediction-panel .prediction-inline-message.success {
-    display: none;
-}
-
-.matches-v2-prediction-panel .prediction-inline-message.error {
-    display: block;
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: var(--mp-red-50);
-    border: 1px solid rgba(239, 68, 68, 0.28);
-    color: var(--mp-red-600);
-}
-
-/* Add breathing room between leaderboard titles and tables. */
-.leaderboard-table-card .table-wrapper {
-    margin-top: 28px;
-}
-
-.leaderboard-table-card > h2,
-.leaderboard-table-card .section-title-row {
-    margin-bottom: 0;
-}
-
-/* Mobile toast placement */
-@media (max-width: 720px) {
-    .matches-v2-toast {
-        right: 12px;
-        bottom: 12px;
-        width: calc(100vw - 24px);
-        border-radius: 22px;
-    }
-}
-
-/* ==========================================================================
    MatchPick v2.0 — Stage 23.2.2 Behaviour + Spacing Fix
    ========================================================================== */
 
@@ -7610,60 +7462,6 @@ h3,
 }
 
 /* --------------------------------------------------------------------------
-   2) ADD SHORT RANKING RULE UNDER "CURRENT STANDINGS"
-   Uses the existing hero paragraph and appends one concise rule line.
-   -------------------------------------------------------------------------- */
-.leaderboard-v2-hero > div:first-child > p::after {
-    content: "Ranking is decided by points first, then correct picks, then fewer missed picks.";
-    display: block;
-    margin-top: 12px;
-    color: #60708e;
-    font-size: 1.05rem;
-    line-height: 1.55;
-    font-weight: 600;
-}
-
-/* --------------------------------------------------------------------------
-   3) FIX GLOBAL RACE MINI CARDS ALIGNMENT
-   Especially "Finished Matches" so the heading + number align with others.
-   -------------------------------------------------------------------------- */
-.leaderboard-v2-metrics {
-    align-items: stretch !important;
-}
-
-.leaderboard-v2-metrics article {
-    display: grid !important;
-    grid-template-rows: minmax(56px, auto) 1fr !important;
-    align-items: center !important;
-    justify-items: center !important;
-    text-align: center !important;
-    gap: 10px !important;
-    padding-top: 24px !important;
-    padding-bottom: 24px !important;
-}
-
-.leaderboard-v2-metrics article span {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
-    min-height: 56px !important;
-    width: 100% !important;
-    line-height: 1.05 !important;
-    margin: 0 !important;
-}
-
-.leaderboard-v2-metrics article strong {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
-    width: 100% !important;
-    line-height: 1 !important;
-    margin: 0 !important;
-}
-
-/* --------------------------------------------------------------------------
    4) REVERT FAIRNESS RULE TO THE DARKER PREMIUM DESIGN
    Keep content the same, only change appearance back to dark.
    -------------------------------------------------------------------------- */
@@ -7908,29 +7706,44 @@ h3,
 
 /* --------------------------------------------------------------------------
    1) FAIRNESS RULE MINI CARDS
-   Make mini-card headings all caps, but reduce heavy bold body text.
+   Final mini-card typography, heading spacing, and body alignment.
    -------------------------------------------------------------------------- */
 
 .leaderboard-explainer .explainer-grid > p {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    padding: 34px 26px 28px !important;
+    text-align: center !important;
+    font-size: 15px !important;
     font-weight: 600 !important;
     color: rgba(226, 232, 240, 0.74) !important;
     line-height: 1.55 !important;
 }
 
 .leaderboard-explainer .explainer-grid > p strong {
-    display: block !important;
-    margin-bottom: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: 220px !important;
+    min-height: 52px !important;
+    margin: 0 auto 22px !important;
+    text-align: center !important;
     color: #ffffff !important;
-    font-size: 16px !important;
+    font-size: 15px !important;
     font-weight: 900 !important;
     letter-spacing: 0.12em !important;
-    line-height: 1.25 !important;
+    line-height: 1.2 !important;
     text-transform: uppercase !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    hyphens: none !important;
 }
 
-/* Slightly softer body text inside the fairness mini-cards. */
-.leaderboard-explainer .explainer-grid > p {
-    font-size: 15px !important;
+.leaderboard-explainer .explainer-grid > p strong * {
+    line-height: 1.2 !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -7987,93 +7800,6 @@ h3,
     font-size: 12px;
     font-weight: 850;
     letter-spacing: 0.02em;
-}
-/* ==========================================================================
-   Stage 24.6 — Fairness Rule Mini-Card Centre Alignment
-   ========================================================================== */
-
-.leaderboard-explainer .explainer-grid > p {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    align-items: center !important;
-    text-align: center !important;
-    padding: 30px 26px !important;
-}
-
-.leaderboard-explainer .explainer-grid > p strong {
-    width: 100% !important;
-    text-align: center !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-}
-
-.leaderboard-explainer .explainer-grid > p {
-    text-align: center !important;
-}
-/* ==========================================================================
-   Stage 24.7 — Fairness Rule Mini-Card Heading Position Fix
-   ========================================================================== */
-
-/* Keep each fairness mini-card content centred horizontally, but put headings back at the top. */
-.leaderboard-explainer .explainer-grid > p {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-start !important;
-    align-items: center !important;
-    text-align: center !important;
-    padding: 34px 26px 28px !important;
-}
-
-/* Headings stay at the top, centred, and safely wrapped. */
-.leaderboard-explainer .explainer-grid > p strong {
-    width: 100% !important;
-    max-width: 220px !important;
-    margin: 0 auto 24px !important;
-    text-align: center !important;
-    line-height: 1.2 !important;
-    overflow-wrap: normal !important;
-    word-break: normal !important;
-    hyphens: none !important;
-}
-
-/* Keep the body text centred and controlled below the heading. */
-.leaderboard-explainer .explainer-grid > p {
-    line-height: 1.55 !important;
-}
-
-/* Slightly reduce heading size if needed so “AFTER FULL-TIME” does not feel cramped. */
-.leaderboard-explainer .explainer-grid > p strong {
-    font-size: 15px !important;
-    letter-spacing: 0.12em !important;
-}
-/* ==========================================================================
-   Stage 24.8 — Fairness Rule Mini-Card Body Text Alignment Fix
-   ========================================================================== */
-
-/* Reserve the same vertical heading area in every fairness mini-card,
-   so all body text starts at the same height. */
-.leaderboard-explainer .explainer-grid > p strong {
-    min-height: 52px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    margin: 0 auto 22px !important;
-    text-align: center !important;
-}
-
-/* Keep body text aligned from the same starting point across all three cards. */
-.leaderboard-explainer .explainer-grid > p {
-    justify-content: flex-start !important;
-    align-items: center !important;
-    text-align: center !important;
-    padding-top: 34px !important;
-}
-
-/* Do not let the single-line heading collapse the reserved heading space. */
-.leaderboard-explainer .explainer-grid > p strong,
-.leaderboard-explainer .explainer-grid > p strong * {
-    line-height: 1.2 !important;
 }
 /* ==========================================================================
    Stage 24.9 — Recent Locked Voting Split Polish
