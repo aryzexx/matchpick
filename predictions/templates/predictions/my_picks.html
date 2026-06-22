@@ -1,0 +1,129 @@
+{% extends "predictions/base.html" %}
+
+{% block content %}
+<section class="page-heading my-picks-v2-heading">
+    <p class="eyebrow">Your prediction history</p>
+
+    <h1>My Picks</h1>
+
+    <p>
+        Review matches you have already picked, change open predictions, and track finished results in one simple list.
+    </p>
+</section>
+
+<section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card">
+    <div class="leaderboard-v2-table-heading">
+        <div>
+            <p class="eyebrow">Picked matches</p>
+
+            <h2>Your saved picks</h2>
+        </div>
+
+        <span class="leaderboard-v2-context-pill">Personal</span>
+    </div>
+
+    <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
+        <table class="leaderboard-table leaderboard-v2-table my-picks-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Kickoff</th>
+                    <th>Match</th>
+                    <th>Your Pick</th>
+                    <th>Result</th>
+                    <th>Status</th>
+                    <th>Change Pick</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for prediction in predictions %}
+                    <tr class="my-picks-row {{ prediction.result_row_class }}">
+                        <td>{{ prediction.match.kickoff_time|date:"d M Y" }}</td>
+
+                        <td>{{ prediction.match.kickoff_time|date:"H:i" }}</td>
+
+                        <td>
+                            <span class="my-picks-team team-inline">
+                                {% if prediction.match.home_team_flag_url %}
+                                    <img class="team-flag-img" src="{{ prediction.match.home_team_flag_url }}" alt="{{ prediction.match.home_team }} flag" loading="lazy">
+                                {% endif %}
+                                <span>{{ prediction.match.home_team }}</span>
+                            </span>
+
+                            <span class="my-picks-versus">vs</span>
+
+                            <span class="my-picks-team team-inline">
+                                {% if prediction.match.away_team_flag_url %}
+                                    <img class="team-flag-img" src="{{ prediction.match.away_team_flag_url }}" alt="{{ prediction.match.away_team }} flag" loading="lazy">
+                                {% endif %}
+                                <span>{{ prediction.match.away_team }}</span>
+                            </span>
+                        </td>
+
+                        <td>{{ prediction.get_prediction_display }}</td>
+
+                        <td>
+                            {% if prediction.match.has_result %}
+                                {{ prediction.match.get_result_display }}
+                            {% else %}
+                                Awaiting result
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <span class="status-pill my-picks-status-pill {% if prediction.voting_is_open %}open{% else %}locked{% endif %}">
+                                {{ prediction.status_label }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {% if prediction.voting_is_open %}
+                                <form class="my-picks-choice-form" method="post" action="{% url 'submit_prediction' prediction.match.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{% url 'my_picks' %}">
+
+                                    <button
+                                        class="my-picks-choice {% if prediction.prediction == 'home' %}selected{% endif %}"
+                                        type="submit"
+                                        name="prediction"
+                                        value="home"
+                                    >
+                                        {{ prediction.match.home_team }}
+                                    </button>
+
+                                    <button
+                                        class="my-picks-choice {% if prediction.prediction == 'draw' %}selected{% endif %}"
+                                        type="submit"
+                                        name="prediction"
+                                        value="draw"
+                                    >
+                                        Draw
+                                    </button>
+
+                                    <button
+                                        class="my-picks-choice {% if prediction.prediction == 'away' %}selected{% endif %}"
+                                        type="submit"
+                                        name="prediction"
+                                        value="away"
+                                    >
+                                        {{ prediction.match.away_team }}
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span class="my-picks-locked-text">Locked</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">
+                            You have not made any picks yet.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

@@ -1437,7 +1437,94 @@ button.button,
 }
 
 /* --------------------------------------------------------------------------
-   16. Insights page general polish
+   16. My Picks
+   -------------------------------------------------------------------------- */
+
+.my-picks-card {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96));
+}
+
+.my-picks-table tbody tr.is-result-match {
+    background: rgba(220, 252, 231, 0.78);
+}
+
+.my-picks-table tbody tr.is-result-different {
+    background: rgba(254, 226, 226, 0.72);
+}
+
+.my-picks-table tbody tr.is-result-match:hover {
+    background: rgba(187, 247, 208, 0.88);
+}
+
+.my-picks-table tbody tr.is-result-different:hover {
+    background: rgba(254, 202, 202, 0.82);
+}
+
+.my-picks-table td:nth-child(3) {
+    min-width: 250px;
+}
+
+.my-picks-table td:nth-child(4),
+.my-picks-table td:nth-child(5) {
+    font-size: 15px;
+}
+
+.my-picks-versus {
+    display: inline-flex;
+    margin: 0 8px;
+    color: var(--mp-slate-500);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.my-picks-status-pill.open {
+    background: var(--mp-green-50);
+    color: var(--mp-green-700);
+}
+
+.my-picks-status-pill.locked {
+    background: var(--mp-slate-200);
+    color: var(--mp-slate-500);
+}
+
+.my-picks-choice-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+}
+
+.my-picks-choice {
+    min-height: 34px;
+    padding: 8px 10px;
+    border-radius: var(--mp-radius-pill);
+    background: white;
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    color: var(--mp-navy-800);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 950;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.my-picks-choice.selected {
+    background: var(--mp-green-50);
+    border-color: rgba(22, 163, 74, 0.44);
+    color: var(--mp-green-700);
+}
+
+.my-picks-locked-text {
+    color: var(--mp-slate-500);
+    font-size: 13px;
+    font-weight: 950;
+}
+
+/* --------------------------------------------------------------------------
+   17. Insights page general polish
    -------------------------------------------------------------------------- */
 
 .insight-grid {
@@ -3151,6 +3238,42 @@ button.button,
     font-weight: 950;
 }
 
+.leaderboard-v2-table.my-picks-table tbody tr.is-result-match {
+    background: rgba(220, 252, 231, 0.86);
+}
+
+.leaderboard-v2-table.my-picks-table tbody tr.is-result-different {
+    background: rgba(254, 226, 226, 0.82);
+}
+
+.leaderboard-v2-table.my-picks-table tbody tr.is-result-match:hover {
+    background: rgba(187, 247, 208, 0.92);
+}
+
+.leaderboard-v2-table.my-picks-table tbody tr.is-result-different:hover {
+    background: rgba(254, 202, 202, 0.88);
+}
+
+.leaderboard-v2-table.my-picks-table tbody td {
+    color: var(--mp-slate-700);
+    font-weight: 650;
+}
+
+.my-picks-table .my-picks-team {
+    color: var(--mp-navy-800);
+    font-weight: 750;
+}
+
+.my-picks-table .my-picks-team .team-flag-img {
+    width: 24px;
+    height: 16px;
+}
+
+.my-picks-table .my-picks-status-pill,
+.my-picks-table .my-picks-locked-text {
+    font-weight: 750;
+}
+
 .leaderboard-v2-table .rank-pill {
     min-width: 48px;
     height: 48px;
@@ -3176,6 +3299,20 @@ button.button,
 
 .leaderboard-v2-table td:nth-child(6) {
     color: #b91c1c;
+}
+
+.leaderboard-v2-table.my-picks-table td:nth-child(3),
+.leaderboard-v2-table.my-picks-table td:nth-child(4),
+.leaderboard-v2-table.my-picks-table td:nth-child(5),
+.leaderboard-v2-table.my-picks-table td:nth-child(6) {
+    color: var(--mp-slate-700);
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: 0;
+}
+
+.leaderboard-v2-table.my-picks-table td:nth-child(3) {
+    min-width: 250px;
 }
 
 .accuracy-pill {
@@ -6273,6 +6410,72 @@ h3,
     padding: 14px 24px;
 }
 
+.home-v2-update-card {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 28px;
+    align-items: center;
+    padding: 30px 34px;
+    border-radius: var(--mp-radius-2xl);
+    background:
+        radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.14), transparent 34%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.99), rgba(239, 246, 255, 0.96));
+    border: 1px solid rgba(147, 197, 253, 0.34);
+    box-shadow:
+        0 24px 64px rgba(2, 6, 23, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.home-v2-update-copy h2 {
+    margin: 0;
+    color: var(--mp-navy-800) !important;
+    font-size: clamp(34px, 4vw, 52px);
+    line-height: 1.02;
+    letter-spacing: -0.04em !important;
+    font-weight: 950;
+}
+
+.home-v2-update-copy p:not(.eyebrow) {
+    max-width: 760px;
+    margin: 14px 0 0;
+    color: var(--mp-slate-500) !important;
+    font-size: 18px;
+    line-height: 1.55;
+    font-weight: 800;
+}
+
+.home-v2-update-side {
+    display: grid;
+    gap: 18px;
+    justify-items: end;
+}
+
+.home-v2-update-list {
+    width: 100%;
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.home-v2-update-list li {
+    padding: 12px 14px;
+    border-radius: var(--mp-radius-md);
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    color: var(--mp-navy-800);
+    font-size: 14px;
+    font-weight: 950;
+}
+
+.home-v2-update-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
 .home-v2-rules-panel {
     min-height: 560px;
     display: flex;
@@ -6615,6 +6818,7 @@ h3,
 
 @media (max-width: 1120px) {
     .home-v2-hero,
+    .home-v2-update-card,
     .leagues-v2-grid {
         grid-template-columns: 1fr;
     }
@@ -6627,11 +6831,18 @@ h3,
     .home-v2-feature-grid {
         grid-template-columns: 1fr;
     }
+
+    .home-v2-update-side,
+    .home-v2-update-actions {
+        justify-items: stretch;
+        justify-content: flex-start;
+    }
 }
 
 @media (max-width: 720px) {
     .home-v2-main-panel,
     .home-v2-rules-panel,
+    .home-v2-update-card,
     .leagues-v2-card {
         padding: 24px;
         border-radius: var(--mp-radius-xl);

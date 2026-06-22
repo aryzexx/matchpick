@@ -290,6 +290,134 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Picks Made")
         self.assertContains(response, "Still Pending")
 
+    def test_logged_in_user_can_access_my_picks(self):
+        match = self.create_match(kickoff_delta_hours=24)
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "My Picks")
+        self.assertContains(response, "Argentina")
+        self.assertContains(response, "Argentina flag")
+        self.assertContains(response, "Home win")
+
+    def test_anonymous_user_is_redirected_from_my_picks(self):
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response["Location"])
+
+    def test_my_picks_only_shows_matches_current_user_has_picked(self):
+        picked_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=24,
+        )
+        unpicked_match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=24,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=picked_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=unpicked_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Argentina")
+        self.assertNotContains(response, "France")
+
+    def test_open_picked_match_can_be_changed_from_my_picks(self):
+        match = self.create_match(kickoff_delta_hours=24)
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Draw")
+        self.assertContains(response, "selected")
+
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_AWAY,
+                "next": reverse("my_picks"),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "My Picks")
+
+        prediction = Prediction.objects.get(user=self.aryan, match=match)
+
+        self.assertEqual(prediction.prediction, Prediction.PREDICTION_AWAY)
+
+    def test_finished_my_picks_show_result_row_highlighting(self):
+        correct_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        incorrect_match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=correct_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=incorrect_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Home win")
+        self.assertContains(response, "Away win")
+        self.assertContains(response, "is-result-match")
+        self.assertContains(response, "is-result-different")
+
     def test_leaderboard_calculates_correct_and_incorrect_predictions(self):
         finished_match = self.create_match(
             home_team="Argentina",
@@ -398,6 +526,11 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "MatchPick")
         self.assertContains(response, "Predict once. Compete everywhere.")
         self.assertContains(response, "MP")
+        self.assertContains(response, "New in MatchPick")
+        self.assertContains(response, "View My Picks")
+        self.assertContains(response, reverse("my_picks"))
+        self.assertContains(response, "View Matches")
+        self.assertContains(response, reverse("matches"))
 
     def test_insights_page_requires_login(self):
         response = self.client.get(reverse("insights"))

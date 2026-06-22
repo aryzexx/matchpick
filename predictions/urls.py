@@ -9,6 +9,7 @@ urlpatterns = [
     path("login/", views.user_login, name="login"),
     path("logout/", views.user_logout, name="logout"),
     path("matches/", views.matches, name="matches"),
+    path("my-picks/", views.my_picks, name="my_picks"),
     path(
         "matches/<int:match_id>/predict/",
         views.submit_prediction,

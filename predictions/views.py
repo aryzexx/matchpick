@@ -1044,6 +1044,38 @@ def matches(request):
 
 
 @login_required
+def my_picks(request):
+    predictions = list(
+        Prediction.objects.filter(user=request.user)
+        .select_related("match")
+        .order_by("match__kickoff_time", "match__home_team")
+    )
+
+    for prediction in predictions:
+        match = prediction.match
+        voting_is_open, voting_message = get_prediction_availability(match)
+
+        prediction.voting_is_open = voting_is_open
+        prediction.voting_message = voting_message
+        prediction.status_label = get_match_timing_label(match, voting_is_open)
+        prediction.result_row_class = ""
+
+        if match.has_result:
+            if prediction.prediction == match.result:
+                prediction.result_row_class = "is-result-match"
+            else:
+                prediction.result_row_class = "is-result-different"
+
+    return render(
+        request,
+        "predictions/my_picks.html",
+        {
+            "predictions": predictions,
+        },
+    )
+
+
+@login_required
 @require_POST
 def submit_prediction(request, match_id):
     match = get_object_or_404(Match, id=match_id)
@@ -1132,6 +1164,16 @@ def submit_prediction(request, match_id):
         )
 
     messages.success(request, success_message)
+
+    redirect_target = request.POST.get("next") or request.GET.get("next")
+
+    if redirect_target and url_has_allowed_host_and_scheme(
+        url=redirect_target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(redirect_target)
+
     return redirect(match_anchor_url)
 
 
