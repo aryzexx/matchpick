@@ -8,6 +8,19 @@ from .models import CompetitionGroup
 User = get_user_model()
 
 
+def find_invite_group(invite_code, error_message):
+    invite_code = invite_code.strip()
+
+    group = CompetitionGroup.objects.filter(
+        invite_code__iexact=invite_code
+    ).first()
+
+    if group is None:
+        raise forms.ValidationError(error_message)
+
+    return invite_code, group
+
+
 class RegisterForm(UserCreationForm):
     invite_code = forms.CharField(
         label="League invite code",
@@ -25,15 +38,10 @@ class RegisterForm(UserCreationForm):
         fields = ("username",)
 
     def clean_invite_code(self):
-        invite_code = self.cleaned_data["invite_code"].strip()
-
-        group = CompetitionGroup.objects.filter(
-            invite_code__iexact=invite_code
-        ).first()
-
-        if group is None:
-            raise forms.ValidationError("This invite code is not valid.")
-
+        invite_code, group = find_invite_group(
+            self.cleaned_data["invite_code"],
+            "This invite code is not valid.",
+        )
         self.invite_group = group
         return invite_code
 
@@ -51,14 +59,9 @@ class JoinLeagueForm(forms.Form):
     )
 
     def clean_invite_code(self):
-        invite_code = self.cleaned_data["invite_code"].strip()
-
-        group = CompetitionGroup.objects.filter(
-            invite_code__iexact=invite_code
-        ).first()
-
-        if group is None:
-            raise forms.ValidationError("This league code is not valid.")
-
+        invite_code, group = find_invite_group(
+            self.cleaned_data["invite_code"],
+            "This league code is not valid.",
+        )
         self.invite_group = group
         return invite_code

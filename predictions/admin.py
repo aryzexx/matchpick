@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import CompetitionGroup, GroupMember, Match, Prediction
+from .views import get_prediction_availability
 
 
 class GroupMemberInline(admin.TabularInline):
@@ -113,7 +114,9 @@ class MatchAdmin(admin.ModelAdmin):
         """
         Shows whether prediction voting is currently open or locked.
         """
-        if obj.is_voting_open:
+        voting_is_open, _ = get_prediction_availability(obj)
+
+        if voting_is_open:
             return "Open"
 
         return "Locked"

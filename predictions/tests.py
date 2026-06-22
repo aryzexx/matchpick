@@ -1,11 +1,13 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.contrib import admin as django_admin
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from .admin import MatchAdmin
 from .models import CompetitionGroup, GroupMember, Match, Prediction
 
 
@@ -306,6 +308,19 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Open Matches")
         self.assertContains(response, "Picks Made")
         self.assertContains(response, "Still Pending")
+
+    def test_match_admin_voting_status_uses_current_voting_rules(self):
+        open_match = self.create_match(kickoff_delta_hours=24)
+        finished_match = self.create_match(
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        match_admin = MatchAdmin(Match, django_admin.site)
+
+        self.assertEqual(match_admin.voting_status(open_match), "Open")
+        self.assertEqual(match_admin.voting_status(finished_match), "Locked")
 
     def test_matches_page_renders_collapse_controls(self):
         self.create_match(kickoff_delta_hours=24)
