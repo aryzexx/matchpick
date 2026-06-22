@@ -337,6 +337,17 @@ class MatchPickUpdateThreeTests(TestCase):
     def test_staff_user_can_trigger_sync_results_command(self, mocked_call_command):
         self.login_as_staff()
 
+        def write_import_output(*args, **kwargs):
+            stdout = kwargs["stdout"]
+            stdout.write("Starting OpenFootball World Cup import...\n")
+            stdout.write("Source URL: https://example.com/worldcup.json\n")
+            stdout.write("OpenFootball import completed.\n")
+            stdout.write("Created: 1\n")
+            stdout.write("Updated: 2\n")
+            stdout.write("Skipped: 3\n")
+
+        mocked_call_command.side_effect = write_import_output
+
         response = self.client.post(
             reverse("sync_latest_results"),
             {
@@ -351,7 +362,15 @@ class MatchPickUpdateThreeTests(TestCase):
             mocked_call_command.call_args.args[0],
             "import_openfootball_worldcup",
         )
-        self.assertContains(response, "Latest fixtures and results synced")
+        self.assertContains(
+            response,
+            "Sync complete. Fixtures and results are up to date.",
+        )
+        self.assertNotContains(response, "Starting OpenFootball World Cup import")
+        self.assertNotContains(response, "Source URL")
+        self.assertNotContains(response, "Created:")
+        self.assertNotContains(response, "Updated:")
+        self.assertNotContains(response, "Skipped:")
 
     @patch("predictions.views.call_command")
     def test_non_staff_user_cannot_trigger_sync_results_command(

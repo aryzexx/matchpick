@@ -925,7 +925,6 @@ def sync_latest_results(request):
 
         return redirect(get_safe_redirect_url(request))
 
-    command_output = output_buffer.getvalue().strip()
     command_errors = error_buffer.getvalue().strip()
 
     if command_errors:
@@ -933,15 +932,10 @@ def sync_latest_results(request):
             request,
             f"Sync completed with warnings: {command_errors[:300]}",
         )
-    elif command_output:
-        messages.success(
-            request,
-            f"Latest fixtures and results synced. {command_output[:300]}",
-        )
     else:
         messages.success(
             request,
-            "Latest fixtures and results synced successfully.",
+            "Sync complete. Fixtures and results are up to date.",
         )
 
     return redirect(get_safe_redirect_url(request))
