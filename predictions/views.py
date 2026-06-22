@@ -874,7 +874,6 @@ def filter_matches(matches_list, selected_filter):
 
 def build_match_filter_tabs(matches_list, selected_filter):
     filter_definitions = [
-        (MATCH_FILTER_ALL, "All"),
         (MATCH_FILTER_OPEN, "Open Now"),
         (MATCH_FILTER_PENDING, "My Pending Picks"),
         (MATCH_FILTER_CLOSING, "Closing Soon"),
@@ -1022,10 +1021,10 @@ def matches(request):
     user_memberships = list(get_user_memberships(request.user))
     primary_membership = user_memberships[0] if user_memberships else None
 
-    selected_filter = request.GET.get("filter", MATCH_FILTER_ALL)
+    selected_filter = request.GET.get("filter", MATCH_FILTER_OPEN)
 
     if selected_filter not in VALID_MATCH_FILTERS:
-        selected_filter = MATCH_FILTER_ALL
+        selected_filter = MATCH_FILTER_OPEN
 
     matches_list = list(Match.objects.all().order_by("kickoff_time", "home_team"))
 
@@ -1070,7 +1069,6 @@ def matches(request):
         if match.is_closing_soon:
             closing_soon_matches.append(match)
 
-    filtered_matches = filter_matches(matches_list, selected_filter)
     filter_tabs = build_match_filter_tabs(matches_list, selected_filter)
 
     open_match_ids = [match.id for match in matches_list if match.voting_is_open]
@@ -1098,7 +1096,7 @@ def matches(request):
     context = {
         "user_memberships": user_memberships,
         "primary_membership": primary_membership,
-        "matches": filtered_matches,
+        "matches": matches_list,
         "all_matches_count": len(matches_list),
         "selected_filter": selected_filter,
         "filter_tabs": filter_tabs,

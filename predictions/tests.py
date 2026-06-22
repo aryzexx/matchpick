@@ -307,6 +307,68 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Picks Made")
         self.assertContains(response, "Still Pending")
 
+    def test_matches_page_renders_collapse_controls(self):
+        self.create_match(kickoff_delta_hours=24)
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "matches-v2-card is-collapsed")
+        self.assertContains(response, "matches-v2-collapse-toggle")
+        self.assertContains(response, "Expand Argentina vs Brazil")
+
+    def test_matches_page_defaults_to_open_filter_without_all_tab(self):
+        self.create_match(kickoff_delta_hours=24)
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Open Now")
+        self.assertContains(response, 'data-filter="open"')
+        self.assertNotContains(response, 'data-filter="all"')
+
+    def test_collapsed_match_summary_includes_essential_match_details(self):
+        self.create_match(kickoff_delta_hours=24)
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "matches-v2-collapsed-summary")
+        self.assertContains(response, "Argentina")
+        self.assertContains(response, "Brazil")
+        self.assertContains(response, "Voting Open")
+        self.assertContains(response, "Awaiting result")
+
+    def test_collapsed_match_summary_shows_finished_user_outcome_indicator(self):
+        finished_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "matches-v2-outcome-indicator outcome-win")
+        self.assertContains(response, "Your pick was correct")
+
     def test_logged_in_user_can_access_my_picks(self):
         match = self.create_match(kickoff_delta_hours=24)
 

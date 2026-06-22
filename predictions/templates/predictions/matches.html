@@ -182,7 +182,7 @@
             <div class="matches-v2-filter-tabs" role="tablist" aria-label="Match filters">
                 {% for tab in filter_tabs %}
                     <button
-                        class="matches-v2-filter-tab {% if tab.key == 'all' %}active{% endif %}"
+                        class="matches-v2-filter-tab {% if tab.is_active %}active{% endif %}"
                         type="button"
                         data-filter="{{ tab.key }}"
                     >
@@ -197,7 +197,7 @@
             <div class="matches-v2-card-list" id="fixture-card-list">
                 {% for match in matches %}
                     <article
-                        class="matches-v2-card"
+                        class="matches-v2-card is-collapsed"
                         id="match-{{ match.id }}"
                         data-match-card="true"
                         data-open="{% if match.voting_is_open %}true{% else %}false{% endif %}"
@@ -210,6 +210,81 @@
                         data-home-flag-url="{{ match.home_team_flag_url }}"
                         data-away-flag-url="{{ match.away_team_flag_url }}"
                     >
+                        <div class="matches-v2-collapsed-summary">
+                            <div class="matches-v2-collapsed-main">
+                                <p class="matches-v2-stage">{{ match.get_stage_display }}</p>
+
+                                <div class="matches-v2-collapsed-team-row">
+                                    <span class="matches-v2-collapsed-team">
+                                        {% if match.home_team_flag_url %}
+                                            <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        {{ match.home_team }}
+                                    </span>
+
+                                    <span class="matches-v2-versus">vs</span>
+
+                                    <span class="matches-v2-collapsed-team">
+                                        {% if match.away_team_flag_url %}
+                                            <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        {{ match.away_team }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="matches-v2-collapsed-meta">
+                                <span>{{ match.kickoff_time|date:"d M Y" }}</span>
+                                <strong>{{ match.kickoff_time|date:"H:i" }}</strong>
+                            </div>
+
+                            <div class="matches-v2-collapsed-status">
+                                <span class="status-pill status-{{ match.status }}">
+                                    {{ match.get_status_display }}
+                                </span>
+
+                                {% if match.voting_is_open %}
+                                    <span class="voting-pill open">Voting Open</span>
+                                {% else %}
+                                    <span class="voting-pill locked">Voting Locked</span>
+                                {% endif %}
+                            </div>
+
+                            <div class="matches-v2-collapsed-result">
+                                <span>Result</span>
+
+                                <strong>
+                                    {% if match.has_result %}
+                                        {{ match.get_result_display }}
+                                    {% else %}
+                                        Awaiting result
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <div class="matches-v2-collapsed-outcome">
+                                {% if match.has_result and match.user_prediction %}
+                                    {% if match.user_prediction.prediction == match.result %}
+                                        <span class="matches-v2-outcome-indicator outcome-win" aria-label="Your pick was correct">W</span>
+                                    {% else %}
+                                        <span class="matches-v2-outcome-indicator outcome-loss" aria-label="Your pick was incorrect">L</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="matches-v2-outcome-indicator outcome-neutral" aria-label="No completed outcome">-</span>
+                                {% endif %}
+                            </div>
+
+                            <button
+                                class="matches-v2-collapse-toggle"
+                                type="button"
+                                aria-expanded="false"
+                                aria-label="Expand {{ match.display_name_plain }}"
+                            >
+                                <span aria-hidden="true">v</span>
+                                <span class="matches-v2-collapse-text">Expand</span>
+                            </button>
+                        </div>
+
                         <div class="matches-v2-card-top">
                             <div>
                                 <p class="matches-v2-stage">{{ match.get_stage_display }}</p>
@@ -244,6 +319,16 @@
                             </div>
 
                             <div class="matches-v2-status-cluster">
+                                <button
+                                    class="matches-v2-collapse-toggle"
+                                    type="button"
+                                    aria-expanded="true"
+                                    aria-label="Collapse {{ match.display_name_plain }}"
+                                >
+                                    <span aria-hidden="true">^</span>
+                                    <span class="matches-v2-collapse-text">Collapse</span>
+                                </button>
+
                                 <span class="status-pill status-{{ match.status }}">
                                     {{ match.get_status_display }}
                                 </span>
@@ -551,8 +636,8 @@
                     Try another filter, or return to the full fixture list.
                 </p>
 
-                <button class="button primary js-activate-filter" type="button" data-filter="all">
-                    View All Matches
+                <button class="button primary js-activate-filter" type="button" data-filter="open">
+                    View Open Matches
                 </button>
             </div>
         {% else %}
@@ -734,7 +819,38 @@
             });
         });
 
-        activateFilter("all", false);
+        activateFilter("{{ selected_filter }}", false);
+
+        function setMatchCardCollapsed(card, shouldCollapse) {
+            const matchName = ((card.dataset.homeTeam || "Home team") + " vs " + (card.dataset.awayTeam || "Away team")).trim();
+
+            card.classList.toggle("is-collapsed", shouldCollapse);
+
+            card.querySelectorAll(".matches-v2-collapse-toggle").forEach(function (button) {
+                const label = shouldCollapse ? "Expand" : "Collapse";
+                const icon = button.querySelector("[aria-hidden='true']");
+                const text = button.querySelector(".matches-v2-collapse-text");
+
+                button.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
+                button.setAttribute("aria-label", label + " " + matchName);
+
+                if (icon) {
+                    icon.textContent = shouldCollapse ? "v" : "^";
+                }
+
+                if (text) {
+                    text.textContent = label;
+                }
+            });
+        }
+
+        matchCards.forEach(function (card) {
+            card.querySelectorAll(".matches-v2-collapse-toggle").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    setMatchCardCollapsed(card, !card.classList.contains("is-collapsed"));
+                });
+            });
+        });
 
         const predictionForms = document.querySelectorAll(".prediction-form");
 
