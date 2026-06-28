@@ -254,8 +254,8 @@
                                 <span>Result</span>
 
                                 <strong>
-                                    {% if match.has_result %}
-                                        {{ match.get_result_display }}
+                                    {% if match.has_scoring_result %}
+                                        {{ match.scoring_result_display }}
                                     {% else %}
                                         Awaiting result
                                     {% endif %}
@@ -263,8 +263,8 @@
                             </div>
 
                             <div class="matches-v2-collapsed-outcome">
-                                {% if match.has_result and match.user_prediction %}
-                                    {% if match.user_prediction.prediction == match.result %}
+                                {% if match.has_scoring_result and match.user_prediction %}
+                                    {% if match.user_prediction.points_awarded > 0 %}
                                         <span class="matches-v2-outcome-indicator outcome-win" aria-label="Your pick was correct">W</span>
                                     {% else %}
                                         <span class="matches-v2-outcome-indicator outcome-loss" aria-label="Your pick was incorrect">L</span>
@@ -355,8 +355,8 @@
                                 <span>Result</span>
 
                                 <strong>
-                                    {% if match.has_result %}
-                                        {{ match.get_result_display }}
+                                    {% if match.has_scoring_result %}
+                                        {{ match.scoring_result_display }}
                                     {% else %}
                                         Awaiting result
                                     {% endif %}
@@ -368,12 +368,12 @@
                             <div class="matches-v2-prediction-panel">
                                 <div class="matches-v2-panel-heading">
                                     <div>
-                                        <p class="eyebrow">Your prediction</p>
+                                        <p class="eyebrow">{{ match.prediction_question }}</p>
 
                                         <h3>
                                             {% if match.user_prediction %}
                                                 Current pick:
-                                                <span class="current-prediction-text">{{ match.user_prediction.get_prediction_display }}</span>
+                                                <span class="current-prediction-text">{{ match.user_prediction.pick_display }}</span>
                                             {% else %}
                                                 Current pick:
                                                 <span class="current-prediction-text">Not selected yet</span>
@@ -398,18 +398,24 @@
                                         {% if match.home_team_flag_url %}
                                             <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
                                         {% endif %}
-                                        {{ match.home_team }} win
+                                        {% if match.is_knockout %}
+                                            {{ match.home_team }} qualifies
+                                        {% else %}
+                                            {{ match.home_team }} win
+                                        {% endif %}
                                     </button>
 
-                                    <button
-                                        class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
-                                        type="submit"
-                                        name="prediction"
-                                        value="draw"
-                                    >
-                                        <span class="draw-icon">D</span>
-                                        Draw
-                                    </button>
+                                    {% if match.allows_draw_prediction %}
+                                        <button
+                                            class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
+                                            type="submit"
+                                            name="prediction"
+                                            value="draw"
+                                        >
+                                            <span class="draw-icon">D</span>
+                                            Draw
+                                        </button>
+                                    {% endif %}
 
                                     <button
                                         class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
@@ -420,7 +426,11 @@
                                         {% if match.away_team_flag_url %}
                                             <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
                                         {% endif %}
-                                        {{ match.away_team }} win
+                                        {% if match.is_knockout %}
+                                            {{ match.away_team }} qualifies
+                                        {% else %}
+                                            {{ match.away_team }} win
+                                        {% endif %}
                                     </button>
                                 </form>
 
@@ -438,10 +448,10 @@
 
                                         {% if match.user_prediction %}
                                             <h3>
-                                                {{ match.user_prediction.get_prediction_display }}
+                                                {{ match.user_prediction.pick_display }}
                                             </h3>
 
-                                            {% if match.has_result %}
+                                            {% if match.has_scoring_result %}
                                                 <p>
                                                     Points awarded:
                                                     <strong>{{ match.user_prediction.points_awarded }}</strong>
@@ -494,7 +504,7 @@
                                                                         </span>
                                                                     {% endif %}
 
-                                                                    <span>{{ match.home_team }} win</span>
+                                                                    <span>{{ option.label }}</span>
                                                                 {% elif option.key == 'away' %}
                                                                     {% if match.away_team_flag_url %}
                                                                         <span class="matches-v2-mini-flag-frame">
@@ -502,10 +512,10 @@
                                                                         </span>
                                                                     {% endif %}
 
-                                                                    <span>{{ match.away_team }} win</span>
+                                                                    <span>{{ option.label }}</span>
                                                                 {% else %}
                                                                     <span class="draw-icon">D</span>
-                                                                    <span>Draw</span>
+                                                                    <span>{{ option.label }}</span>
                                                                 {% endif %}
                                                             </div>
 

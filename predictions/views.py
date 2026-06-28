@@ -176,9 +176,11 @@ def get_prediction_trends_for_match(match):
 
     counts = {
         Prediction.PREDICTION_HOME: 0,
-        Prediction.PREDICTION_DRAW: 0,
         Prediction.PREDICTION_AWAY: 0,
     }
+
+    if match.allows_draw_prediction:
+        counts[Prediction.PREDICTION_DRAW] = 0
 
     for prediction in predictions:
         if prediction.prediction in counts:
@@ -189,7 +191,11 @@ def get_prediction_trends_for_match(match):
     options = [
         {
             "key": Prediction.PREDICTION_HOME,
-            "label": f"{match.home_team_with_flag} win",
+            "label": (
+                f"{match.home_team_with_flag} qualifies"
+                if match.is_knockout
+                else f"{match.home_team_with_flag} win"
+            ),
             "short_label": match.home_team_with_flag,
             "count": counts[Prediction.PREDICTION_HOME],
             "percentage": percentage(
@@ -198,18 +204,12 @@ def get_prediction_trends_for_match(match):
             ),
         },
         {
-            "key": Prediction.PREDICTION_DRAW,
-            "label": "Draw",
-            "short_label": "Draw",
-            "count": counts[Prediction.PREDICTION_DRAW],
-            "percentage": percentage(
-                counts[Prediction.PREDICTION_DRAW],
-                total_predictions,
-            ),
-        },
-        {
             "key": Prediction.PREDICTION_AWAY,
-            "label": f"{match.away_team_with_flag} win",
+            "label": (
+                f"{match.away_team_with_flag} qualifies"
+                if match.is_knockout
+                else f"{match.away_team_with_flag} win"
+            ),
             "short_label": match.away_team_with_flag,
             "count": counts[Prediction.PREDICTION_AWAY],
             "percentage": percentage(
@@ -218,6 +218,21 @@ def get_prediction_trends_for_match(match):
             ),
         },
     ]
+
+    if match.allows_draw_prediction:
+        options.insert(
+            1,
+            {
+                "key": Prediction.PREDICTION_DRAW,
+                "label": "Draw",
+                "short_label": "Draw",
+                "count": counts[Prediction.PREDICTION_DRAW],
+                "percentage": percentage(
+                    counts[Prediction.PREDICTION_DRAW],
+                    total_predictions,
+                ),
+            },
+        )
 
     top_option = None
 
@@ -281,10 +296,12 @@ def build_shared_league_pick_reveal_for_match(match, user_memberships, current_u
 
     buckets = {
         Prediction.PREDICTION_HOME: [],
-        Prediction.PREDICTION_DRAW: [],
         Prediction.PREDICTION_AWAY: [],
         "missed": [],
     }
+
+    if match.allows_draw_prediction:
+        buckets[Prediction.PREDICTION_DRAW] = []
 
     for member_user in shared_users:
         prediction = prediction_by_user_id.get(member_user.id)
@@ -294,29 +311,47 @@ def build_shared_league_pick_reveal_for_match(match, user_memberships, current_u
             "is_current_user": member_user.id == current_user.id,
         }
 
-        if prediction:
+        if prediction and prediction.prediction in buckets:
             buckets[prediction.prediction].append(member_row)
         else:
             buckets["missed"].append(member_row)
 
     submitted_count = (
         len(buckets[Prediction.PREDICTION_HOME])
-        + len(buckets[Prediction.PREDICTION_DRAW])
         + len(buckets[Prediction.PREDICTION_AWAY])
     )
 
-    return {
-        "total_members": len(shared_users),
-        "submitted_count": submitted_count,
-        "league_count": len(group_ids),
-        "buckets": [
-            {
-                "key": Prediction.PREDICTION_HOME,
-                "label": f"{match.home_team} win",
-                "team": match.home_team,
-                "flag_url": match.home_team_flag_url,
-                "members": buckets[Prediction.PREDICTION_HOME],
-            },
+    if match.allows_draw_prediction:
+        submitted_count += len(buckets[Prediction.PREDICTION_DRAW])
+
+    reveal_buckets = [
+        {
+            "key": Prediction.PREDICTION_HOME,
+            "label": (
+                f"{match.home_team} qualifies"
+                if match.is_knockout
+                else f"{match.home_team} win"
+            ),
+            "team": match.home_team,
+            "flag_url": match.home_team_flag_url,
+            "members": buckets[Prediction.PREDICTION_HOME],
+        },
+        {
+            "key": Prediction.PREDICTION_AWAY,
+            "label": (
+                f"{match.away_team} qualifies"
+                if match.is_knockout
+                else f"{match.away_team} win"
+            ),
+            "team": match.away_team,
+            "flag_url": match.away_team_flag_url,
+            "members": buckets[Prediction.PREDICTION_AWAY],
+        },
+    ]
+
+    if match.allows_draw_prediction:
+        reveal_buckets.insert(
+            1,
             {
                 "key": Prediction.PREDICTION_DRAW,
                 "label": "Draw",
@@ -324,21 +359,23 @@ def build_shared_league_pick_reveal_for_match(match, user_memberships, current_u
                 "flag_url": "",
                 "members": buckets[Prediction.PREDICTION_DRAW],
             },
-            {
-                "key": Prediction.PREDICTION_AWAY,
-                "label": f"{match.away_team} win",
-                "team": match.away_team,
-                "flag_url": match.away_team_flag_url,
-                "members": buckets[Prediction.PREDICTION_AWAY],
-            },
-            {
-                "key": "missed",
-                "label": "No pick submitted",
-                "team": "",
-                "flag_url": "",
-                "members": buckets["missed"],
-            },
-        ],
+        )
+
+    reveal_buckets.append(
+        {
+            "key": "missed",
+            "label": "No pick submitted",
+            "team": "",
+            "flag_url": "",
+            "members": buckets["missed"],
+        },
+    )
+
+    return {
+        "total_members": len(shared_users),
+        "submitted_count": submitted_count,
+        "league_count": len(group_ids),
+        "buckets": reveal_buckets,
     }
 
 
@@ -368,14 +405,16 @@ def build_prediction_insights():
 
         trend_matches.append(trend_match)
 
-        if match.has_result and trends["top_option"]:
+        scoring_result = match.get_scoring_result()
+
+        if scoring_result and trends["top_option"]:
             crowd_item = {
                 "match": match,
                 "top_option": trends["top_option"],
                 "trends": trends,
             }
 
-            if trends["top_option"]["key"] == match.result:
+            if trends["top_option"]["key"] == scoring_result:
                 crowd_right_candidates.append(crowd_item)
             else:
                 crowd_wrong_candidates.append(crowd_item)
@@ -576,16 +615,28 @@ def build_tie_summary(tied_rows, value, value_label):
     }
 
 
-def build_leaderboard_rows(users, current_user, role_by_user_id=None):
-    finished_matches = [
+def get_scored_matches():
+    return [
         match
         for match in Match.objects.filter(status=Match.STATUS_FINISHED).order_by(
             "kickoff_time"
         )
-        if match.has_result
+        if match.has_scoring_result
     ]
 
-    finished_matches_count = len(finished_matches)
+
+def build_leaderboard_rows(
+    users,
+    current_user,
+    role_by_user_id=None,
+    scoring_matches=None,
+    include_movement=True,
+):
+    if scoring_matches is None:
+        scoring_matches = get_scored_matches()
+
+    finished_matches_count = len(scoring_matches)
+    scoring_match_ids = {match.id for match in scoring_matches}
     leaderboard_rows = []
 
     for user in users:
@@ -598,9 +649,9 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
 
         for prediction in predictions_by_match_id.values():
             predictions_made += 1
-            total_points += prediction.points_awarded
 
-            if prediction.match.has_result:
+            if prediction.match_id in scoring_match_ids:
+                total_points += prediction.points_awarded
                 scored_predictions += 1
 
                 if prediction.points_awarded > 0:
@@ -653,6 +704,49 @@ def build_leaderboard_rows(users, current_user, role_by_user_id=None):
 
     for index, row in enumerate(leaderboard_rows, start=1):
         row["rank"] = index
+        row["movement_direction"] = "neutral"
+        row["movement_amount"] = 0
+        row["movement_label"] = "No rank change"
+
+    if include_movement and scoring_matches:
+        latest_scored_date = max(
+            timezone.localdate(match.kickoff_time) for match in scoring_matches
+        )
+        previous_scoring_matches = [
+            match
+            for match in scoring_matches
+            if timezone.localdate(match.kickoff_time) < latest_scored_date
+        ]
+
+        if previous_scoring_matches:
+            previous_context = build_leaderboard_rows(
+                users=users,
+                current_user=current_user,
+                role_by_user_id=role_by_user_id,
+                scoring_matches=previous_scoring_matches,
+                include_movement=False,
+            )
+            previous_rank_by_user_id = {
+                row["user_id"]: row["rank"]
+                for row in previous_context["leaderboard_rows"]
+            }
+
+            for row in leaderboard_rows:
+                previous_rank = previous_rank_by_user_id.get(row["user_id"])
+
+                if previous_rank is None:
+                    continue
+
+                movement = previous_rank - row["rank"]
+
+                if movement > 0:
+                    row["movement_direction"] = "up"
+                    row["movement_amount"] = movement
+                    row["movement_label"] = f"Up {movement}"
+                elif movement < 0:
+                    row["movement_direction"] = "down"
+                    row["movement_amount"] = abs(movement)
+                    row["movement_label"] = f"Down {abs(movement)}"
 
     highest_points = 0
     average_accuracy = 0
@@ -775,10 +869,12 @@ def pick_is_publicly_visible(match):
 
 
 def get_prediction_result_class(prediction):
-    if not prediction.match.has_result:
+    scoring_result = prediction.match.get_scoring_result()
+
+    if scoring_result is None:
         return ""
 
-    if prediction.prediction == prediction.match.result:
+    if prediction.prediction == scoring_result:
         return "is-result-match"
 
     return "is-result-different"
@@ -803,7 +899,7 @@ def build_player_stats(predictions, include_open_stats):
             for match in Match.objects.filter(status=Match.STATUS_FINISHED).order_by(
                 "kickoff_time"
             )
-            if match.has_result
+            if match.has_scoring_result
         ]
     )
     total_points = 0
@@ -832,10 +928,12 @@ def build_player_stats(predictions, include_open_stats):
         if getattr(prediction, "voting_is_open", False):
             open_picks += 1
 
-        if match.has_result:
+        scoring_result = match.get_scoring_result()
+
+        if scoring_result is not None:
             finished_picks += 1
 
-            if prediction.prediction == match.result:
+            if prediction.prediction == scoring_result:
                 correct_picks += 1
                 form_label = "W"
                 form_class = "is-win"
@@ -908,10 +1006,15 @@ def decorate_pick_history_predictions(predictions, can_edit):
 
 
 def get_compare_pick_class(prediction):
-    if prediction is None or not prediction.match.has_result:
+    if prediction is None:
         return "is-neutral"
 
-    if prediction.prediction == prediction.match.result:
+    scoring_result = prediction.match.get_scoring_result()
+
+    if scoring_result is None:
+        return "is-neutral"
+
+    if prediction.prediction == scoring_result:
         return "is-result-match"
 
     return "is-result-different"
@@ -970,11 +1073,13 @@ def build_compare_summary(compare_rows, user_a, user_b):
         if user_a_prediction.prediction == user_b_prediction.prediction:
             same_picks += 1
 
-        if not match.has_result:
+        scoring_result = match.get_scoring_result()
+
+        if scoring_result is None:
             continue
 
-        user_a_was_correct = user_a_prediction.prediction == match.result
-        user_b_was_correct = user_b_prediction.prediction == match.result
+        user_a_was_correct = user_a_prediction.prediction == scoring_result
+        user_b_was_correct = user_b_prediction.prediction == scoring_result
 
         if user_a_was_correct:
             user_a_correct += 1
@@ -1451,12 +1556,19 @@ def submit_prediction(request, match_id):
 
     valid_choices = [
         Prediction.PREDICTION_HOME,
-        Prediction.PREDICTION_DRAW,
         Prediction.PREDICTION_AWAY,
     ]
 
+    if match.allows_draw_prediction:
+        valid_choices.insert(1, Prediction.PREDICTION_DRAW)
+
     if prediction_choice not in valid_choices:
-        error_message = "Invalid prediction option."
+        if match.is_knockout and prediction_choice == Prediction.PREDICTION_DRAW:
+            error_message = (
+                "Draw is not available for knockout matches. Pick who qualifies."
+            )
+        else:
+            error_message = "Invalid prediction option."
 
         if is_ajax:
             return JsonResponse(
@@ -1489,7 +1601,7 @@ def submit_prediction(request, match_id):
                 "success": True,
                 "message": success_message,
                 "prediction": prediction.prediction,
-                "prediction_display": prediction.get_prediction_display(),
+                "prediction_display": prediction.pick_display,
                 "match_id": match.id,
             }
         )

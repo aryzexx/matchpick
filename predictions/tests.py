@@ -70,19 +70,26 @@ class MatchPickUpdateThreeTests(TestCase):
         result=None,
         home_score=None,
         away_score=None,
+        stage=Match.STAGE_GROUP,
+        qualified_team=None,
+        kickoff_time=None,
     ):
         if status is None:
             status = Match.STATUS_SCHEDULED
 
+        if kickoff_time is None:
+            kickoff_time = timezone.now() + timedelta(hours=kickoff_delta_hours)
+
         return Match.objects.create(
             home_team=home_team,
             away_team=away_team,
-            kickoff_time=timezone.now() + timedelta(hours=kickoff_delta_hours),
-            stage=Match.STAGE_GROUP,
+            kickoff_time=kickoff_time,
+            stage=stage,
             status=status,
             result=result,
             home_score=home_score,
             away_score=away_score,
+            qualified_team=qualified_team,
         )
 
     def login_as_aryan(self):
@@ -321,6 +328,23 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.assertEqual(match_admin.voting_status(open_match), "Open")
         self.assertEqual(match_admin.voting_status(finished_match), "Locked")
+
+    def test_match_admin_flags_finished_knockout_missing_qualified_team(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+        match_admin = MatchAdmin(Match, django_admin.site)
+
+        self.assertEqual(
+            match_admin.qualification_status(match),
+            "Needs qualified team",
+        )
 
     def test_matches_page_renders_collapse_controls(self):
         self.create_match(kickoff_delta_hours=24)
@@ -572,6 +596,163 @@ class MatchPickUpdateThreeTests(TestCase):
         prediction = Prediction.objects.get(user=self.aryan, match=match)
 
         self.assertEqual(prediction.prediction, Prediction.PREDICTION_AWAY)
+
+    def test_group_match_still_allows_draw_prediction_button(self):
+        self.create_match(kickoff_delta_hours=24)
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your prediction")
+        self.assertContains(response, 'value="draw"')
+        self.assertContains(response, "Draw")
+
+    def test_knockout_match_hides_draw_prediction_button(self):
+        self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Who qualifies?")
+        self.assertContains(response, "France qualifies")
+        self.assertContains(response, "Germany qualifies")
+        self.assertNotContains(response, 'value="draw"')
+
+    def test_knockout_match_rejects_draw_prediction(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_DRAW,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Draw is not available for knockout matches. Pick who qualifies.",
+        )
+        self.assertFalse(
+            Prediction.objects.filter(
+                user=self.aryan,
+                match=match,
+            ).exists()
+        )
+
+    def test_knockout_match_saves_home_or_away_qualifier_prediction(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_AWAY,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        prediction = Prediction.objects.get(user=self.aryan, match=match)
+        self.assertEqual(prediction.prediction, Prediction.PREDICTION_AWAY)
+
+    def test_knockout_prediction_scores_against_qualified_team(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_16,
+            qualified_team=Match.RESULT_AWAY,
+        )
+
+        correct_prediction = Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        incorrect_prediction = Prediction.objects.create(
+            user=self.friend,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.assertEqual(match.result, Match.RESULT_DRAW)
+        self.assertEqual(match.get_scoring_result(), Match.RESULT_AWAY)
+        self.assertEqual(correct_prediction.points_awarded, 3)
+        self.assertEqual(incorrect_prediction.points_awarded, 0)
+
+    def test_knockout_finished_match_without_qualified_team_is_unscored(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        prediction = Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.assertEqual(match.result, Match.RESULT_DRAW)
+        self.assertIsNone(match.get_scoring_result())
+        self.assertEqual(prediction.points_awarded, 0)
+
+    def test_qualified_team_choices_do_not_include_draw(self):
+        choice_values = [
+            value for value, _label in Match._meta.get_field("qualified_team").choices
+        ]
+
+        self.assertEqual(choice_values, [Match.RESULT_HOME, Match.RESULT_AWAY])
+
+    def test_group_stage_scoring_still_awards_three_points(self):
+        match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+
+        prediction = Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.assertEqual(match.get_scoring_result(), Match.RESULT_HOME)
+        self.assertEqual(prediction.points_awarded, 3)
 
     def test_finished_my_picks_show_result_row_highlighting(self):
         correct_match = self.create_match(
@@ -911,6 +1092,141 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Incorrect Picks")
         self.assertContains(response, "0%")
+
+    def test_global_leaderboard_shows_rank_movement_inside_rank_cell(self):
+        third_user = User.objects.create_user(
+            username="third",
+            password="Testpass123!",
+        )
+        GroupMember.objects.create(
+            user=third_user,
+            group=self.family,
+            role=GroupMember.ROLE_MEMBER,
+        )
+        base_time = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        previous_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+            kickoff_time=base_time - timedelta(days=2),
+        )
+        latest_match_one = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+            kickoff_time=base_time - timedelta(days=1),
+        )
+        latest_match_two = self.create_match(
+            home_team="Spain",
+            away_team="Portugal",
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+            kickoff_time=base_time - timedelta(days=1) + timedelta(hours=1),
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=previous_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=previous_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=latest_match_one,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=latest_match_one,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=latest_match_two,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=latest_match_two,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "rank-movement movement-up")
+        self.assertContains(response, "&uarr; 1", html=False)
+        self.assertContains(response, "rank-movement movement-down")
+        self.assertContains(response, "&darr; 1", html=False)
+        self.assertContains(response, "rank-movement movement-neutral")
+        self.assertNotContains(response, "<th>Movement</th>", html=False)
+
+    def test_league_leaderboard_shows_rank_movement(self):
+        GroupMember.objects.create(
+            user=self.friend,
+            group=self.family,
+            role=GroupMember.ROLE_MEMBER,
+        )
+        base_time = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        previous_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+            kickoff_time=base_time - timedelta(days=2),
+        )
+        latest_match_one = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+            kickoff_time=base_time - timedelta(days=1),
+        )
+        latest_match_two = self.create_match(
+            home_team="Spain",
+            away_team="Portugal",
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+            kickoff_time=base_time - timedelta(days=1) + timedelta(hours=1),
+        )
+
+        for match, aryan_pick, friend_pick in [
+            (previous_match, Prediction.PREDICTION_HOME, Prediction.PREDICTION_AWAY),
+            (latest_match_one, Prediction.PREDICTION_HOME, Prediction.PREDICTION_AWAY),
+            (latest_match_two, Prediction.PREDICTION_HOME, Prediction.PREDICTION_AWAY),
+        ]:
+            Prediction.objects.create(
+                user=self.aryan,
+                match=match,
+                prediction=aryan_pick,
+            )
+            Prediction.objects.create(
+                user=self.friend,
+                match=match,
+                prediction=friend_pick,
+            )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("league_detail", args=[self.family.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "rank-movement movement-up")
+        self.assertContains(response, "rank-movement movement-down")
 
     def test_staff_user_can_see_sync_results_button_on_matches_page(self):
         self.login_as_staff()

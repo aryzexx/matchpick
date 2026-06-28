@@ -81,6 +81,13 @@ class Command(BaseCommand):
 
             if existing_match:
                 for field_name, field_value in parsed_match.items():
+                    if (
+                        field_name == "qualified_team"
+                        and field_value is None
+                        and existing_match.qualified_team
+                    ):
+                        continue
+
                     setattr(existing_match, field_name, field_value)
 
                 existing_match.save()
@@ -175,9 +182,19 @@ class Command(BaseCommand):
 
         if status == Match.STATUS_FINISHED:
             temporary_match = Match(**parsed_match)
-            parsed_match["result"] = temporary_match.calculate_result_from_score()
+            calculated_result = temporary_match.calculate_result_from_score()
+            parsed_match["result"] = calculated_result
+
+            if (
+                temporary_match.is_knockout
+                and calculated_result in {Match.RESULT_HOME, Match.RESULT_AWAY}
+            ):
+                parsed_match["qualified_team"] = calculated_result
+            else:
+                parsed_match["qualified_team"] = None
         else:
             parsed_match["result"] = None
+            parsed_match["qualified_team"] = None
 
         return parsed_match
 

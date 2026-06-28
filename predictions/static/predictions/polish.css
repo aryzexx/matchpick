@@ -3490,6 +3490,32 @@ button.button,
     font-size: 16px;
 }
 
+.rank-movement {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    margin-left: 8px;
+    padding: 6px 9px;
+    border-radius: var(--mp-radius-pill);
+    background: var(--mp-slate-100);
+    color: var(--mp-slate-500);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    vertical-align: middle;
+}
+
+.rank-movement.movement-up {
+    background: rgba(220, 252, 231, 0.92);
+    color: #047857;
+}
+
+.rank-movement.movement-down {
+    background: rgba(254, 226, 226, 0.92);
+    color: #b91c1c;
+}
+
 .leaderboard-v2-table .role-text {
     display: block;
     margin-top: 5px;

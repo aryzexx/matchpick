@@ -177,11 +177,11 @@ def team_name_with_flag(team_name):
 
 class CompetitionGroup(models.Model):
     name = models.CharField(max_length=100)
-    invite_code = models.CharField(max_length=20, unique=True)
+    invite_code = models.CharField(max_length=30, unique=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="created_prediction_groups",
+        related_name="created_competition_groups",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -217,7 +217,7 @@ class GroupMember(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="prediction_group_memberships",
+        related_name="group_memberships",
     )
     role = models.CharField(
         max_length=20,
@@ -228,7 +228,7 @@ class GroupMember(models.Model):
 
     class Meta:
         unique_together = ["group", "user"]
-        ordering = ["group__name", "user__username"]
+        ordering = ["group", "user"]
 
     def __str__(self):
         return f"{self.user.username} in {self.group.name}"
@@ -241,6 +241,8 @@ class Match(models.Model):
     STATUS_CHOICES = [
         (STATUS_SCHEDULED, "Scheduled"),
         (STATUS_FINISHED, "Finished"),
+        ("postponed", "Postponed"),
+        ("cancelled", "Cancelled"),
     ]
 
     STAGE_GROUP = "group"
@@ -255,9 +257,9 @@ class Match(models.Model):
         (STAGE_GROUP, "Group Stage"),
         (STAGE_ROUND_OF_32, "Round of 32"),
         (STAGE_ROUND_OF_16, "Round of 16"),
-        (STAGE_QUARTER_FINAL, "Quarter Final"),
-        (STAGE_SEMI_FINAL, "Semi Final"),
-        (STAGE_THIRD_PLACE, "Third Place Play-off"),
+        (STAGE_QUARTER_FINAL, "Quarter-final"),
+        (STAGE_SEMI_FINAL, "Semi-final"),
+        (STAGE_THIRD_PLACE, "Third-place Play-off"),
         (STAGE_FINAL, "Final"),
     ]
 
@@ -266,23 +268,28 @@ class Match(models.Model):
     RESULT_AWAY = "away"
 
     RESULT_CHOICES = [
-        (RESULT_HOME, "Home win"),
+        (RESULT_HOME, "Home team win"),
         (RESULT_DRAW, "Draw"),
-        (RESULT_AWAY, "Away win"),
+        (RESULT_AWAY, "Away team win"),
+    ]
+
+    QUALIFIED_TEAM_CHOICES = [
+        (RESULT_HOME, "Home team qualifies"),
+        (RESULT_AWAY, "Away team qualifies"),
     ]
 
     external_source = models.CharField(
-        max_length=100,
+        max_length=50,
         blank=True,
-        default="",
+        help_text="Optional source name for imported fixtures, e.g. openfootball.",
     )
     external_match_id = models.CharField(
         max_length=100,
         blank=True,
-        default="",
+        help_text="Optional match ID from the external fixture/result source.",
     )
-    home_team = models.CharField(max_length=100)
-    away_team = models.CharField(max_length=100)
+    home_team = models.CharField(max_length=80)
+    away_team = models.CharField(max_length=80)
     kickoff_time = models.DateTimeField()
     stage = models.CharField(
         max_length=30,
@@ -294,35 +301,41 @@ class Match(models.Model):
         choices=STATUS_CHOICES,
         default=STATUS_SCHEDULED,
     )
-    home_score = models.PositiveIntegerField(
+    home_score = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
+        help_text="Final home team score. Leave blank before the match is finished.",
     )
-    away_score = models.PositiveIntegerField(
+    away_score = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
+        help_text="Final away team score. Leave blank before the match is finished.",
     )
     result = models.CharField(
         max_length=10,
         choices=RESULT_CHOICES,
         blank=True,
         null=True,
+        help_text="Final outcome used for scoring predictions.",
+    )
+    qualified_team = models.CharField(
+        max_length=10,
+        choices=QUALIFIED_TEAM_CHOICES,
+        blank=True,
+        null=True,
     )
     last_synced_at = models.DateTimeField(
         null=True,
         blank=True,
+        help_text="When this match was last updated from an external source.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["kickoff_time", "home_team"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["external_source", "external_match_id"],
-                name="unique_external_match",
-            )
-        ]
+        verbose_name = "Match"
+        verbose_name_plural = "Matches"
 
     @property
     def has_result(self):
@@ -331,6 +344,68 @@ class Match(models.Model):
             self.RESULT_DRAW,
             self.RESULT_AWAY,
         }
+
+    @property
+    def is_knockout(self):
+        return self.stage in {
+            self.STAGE_ROUND_OF_32,
+            self.STAGE_ROUND_OF_16,
+            self.STAGE_QUARTER_FINAL,
+            self.STAGE_SEMI_FINAL,
+            self.STAGE_THIRD_PLACE,
+            self.STAGE_FINAL,
+        }
+
+    @property
+    def allows_draw_prediction(self):
+        return not self.is_knockout
+
+    def get_scoring_result(self):
+        if self.is_knockout:
+            if self.qualified_team in {
+                self.RESULT_HOME,
+                self.RESULT_AWAY,
+            }:
+                return self.qualified_team
+
+            return None
+
+        if self.has_result:
+            return self.result
+
+        return None
+
+    @property
+    def has_scoring_result(self):
+        return self.get_scoring_result() is not None
+
+    @property
+    def prediction_question(self):
+        if self.is_knockout:
+            return "Who qualifies?"
+
+        return "Your prediction"
+
+    @property
+    def scoring_result_display(self):
+        scoring_result = self.get_scoring_result()
+
+        if scoring_result is None:
+            return "Awaiting result"
+
+        if self.is_knockout:
+            if scoring_result == self.RESULT_HOME:
+                return f"{self.home_team} qualifies"
+
+            return f"{self.away_team} qualifies"
+
+        if scoring_result == self.RESULT_HOME:
+            return "Home win"
+
+        if scoring_result == self.RESULT_AWAY:
+            return "Away win"
+
+        return "Draw"
 
     @property
     def score_display(self):
@@ -425,9 +500,9 @@ class Prediction(models.Model):
     PREDICTION_AWAY = "away"
 
     PREDICTION_CHOICES = [
-        (PREDICTION_HOME, "Home win"),
+        (PREDICTION_HOME, "Home team win"),
         (PREDICTION_DRAW, "Draw"),
-        (PREDICTION_AWAY, "Away win"),
+        (PREDICTION_AWAY, "Away team win"),
     ]
 
     user = models.ForeignKey(
@@ -453,13 +528,34 @@ class Prediction(models.Model):
         ordering = ["-submitted_at"]
 
     def calculate_points(self):
-        if not self.match.has_result:
+        scoring_result = self.match.get_scoring_result()
+
+        if scoring_result is None:
             return 0
 
-        if self.prediction == self.match.result:
+        if self.prediction == scoring_result:
             return 3
 
         return 0
+
+    @property
+    def pick_display(self):
+        if self.match.is_knockout:
+            if self.prediction == self.PREDICTION_HOME:
+                return f"{self.match.home_team} qualifies"
+
+            if self.prediction == self.PREDICTION_AWAY:
+                return f"{self.match.away_team} qualifies"
+
+            return "Draw (not valid for knockout)"
+
+        if self.prediction == self.PREDICTION_HOME:
+            return "Home win"
+
+        if self.prediction == self.PREDICTION_AWAY:
+            return "Away win"
+
+        return "Draw"
 
     def save(self, *args, **kwargs):
         self.points_awarded = self.calculate_points()

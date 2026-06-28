@@ -255,9 +255,9 @@
                             {% endfor %}
                         </div>
 
-                        {% if item.match.has_result %}
+                        {% if item.match.has_scoring_result %}
                             <p class="trend-footnote insights-v2-result-note">
-                                Final result: {{ item.match.score_display }} — {{ item.match.get_result_display }}
+                                Final result: {{ item.match.score_display }} - {{ item.match.scoring_result_display }}
                             </p>
                         {% else %}
                             <p class="trend-footnote insights-v2-result-note">

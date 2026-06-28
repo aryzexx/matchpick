@@ -50,6 +50,8 @@ class MatchAdmin(admin.ModelAdmin):
         "status",
         "score_display",
         "result",
+        "qualified_team",
+        "qualification_status",
         "voting_status",
         "external_source",
         "last_synced_at",
@@ -64,6 +66,7 @@ class MatchAdmin(admin.ModelAdmin):
         "stage",
         "status",
         "result",
+        "qualified_team",
         "external_source",
         "kickoff_time",
     )
@@ -90,10 +93,13 @@ class MatchAdmin(admin.ModelAdmin):
                     "home_score",
                     "away_score",
                     "result",
+                    "qualified_team",
                 ),
                 "description": (
                     "If status is Finished and both scores are entered, "
-                    "the result will be calculated automatically."
+                    "the score result will be calculated automatically. "
+                    "For knockout matches decided outside normal score result, "
+                    "set the qualified team for prediction scoring."
                 ),
             },
         ),
@@ -122,6 +128,23 @@ class MatchAdmin(admin.ModelAdmin):
         return "Locked"
 
     voting_status.short_description = "Voting"
+
+    def qualification_status(self, obj):
+        """
+        Flags knockout matches that still need a qualified team for scoring.
+        """
+        if not obj.is_knockout:
+            return "-"
+
+        if obj.qualified_team:
+            return obj.get_qualified_team_display()
+
+        if obj.status == Match.STATUS_FINISHED:
+            return "Needs qualified team"
+
+        return "Pending"
+
+    qualification_status.short_description = "Qualification"
 
     def save_model(self, request, obj, form, change):
         """

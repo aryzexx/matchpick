@@ -260,16 +260,16 @@
                             </td>
 
                             <td class="compare-pick-cell {{ row.user_a_pick_class }}">
-                                {{ row.user_a_prediction.get_prediction_display }}
+                                {{ row.user_a_prediction.pick_display }}
                             </td>
 
                             <td class="compare-pick-cell {{ row.user_b_pick_class }}">
-                                {{ row.user_b_prediction.get_prediction_display }}
+                                {{ row.user_b_prediction.pick_display }}
                             </td>
 
                             <td>
-                                {% if row.match.has_result %}
-                                    {{ row.match.get_result_display }}
+                                {% if row.match.has_scoring_result %}
+                                    {{ row.match.scoring_result_display }}
                                 {% else %}
                                     Awaiting result
                                 {% endif %}
@@ -350,11 +350,11 @@
                             </span>
                         </td>
 
-                        <td>{{ prediction.get_prediction_display }}</td>
+                        <td>{{ prediction.pick_display }}</td>
 
                         <td>
-                            {% if prediction.match.has_result %}
-                                {{ prediction.match.get_result_display }}
+                            {% if prediction.match.has_scoring_result %}
+                                {{ prediction.match.scoring_result_display }}
                             {% else %}
                                 Awaiting result
                             {% endif %}
@@ -378,17 +378,19 @@
                                         name="prediction"
                                         value="home"
                                     >
-                                        {{ prediction.match.home_team }}
+                                        {{ prediction.match.home_team }}{% if prediction.match.is_knockout %} qualifies{% endif %}
                                     </button>
 
-                                    <button
-                                        class="my-picks-choice {% if prediction.prediction == 'draw' %}selected{% endif %}"
-                                        type="submit"
-                                        name="prediction"
-                                        value="draw"
-                                    >
-                                        Draw
-                                    </button>
+                                    {% if prediction.match.allows_draw_prediction %}
+                                        <button
+                                            class="my-picks-choice {% if prediction.prediction == 'draw' %}selected{% endif %}"
+                                            type="submit"
+                                            name="prediction"
+                                            value="draw"
+                                        >
+                                            Draw
+                                        </button>
+                                    {% endif %}
 
                                     <button
                                         class="my-picks-choice {% if prediction.prediction == 'away' %}selected{% endif %}"
@@ -396,7 +398,7 @@
                                         name="prediction"
                                         value="away"
                                     >
-                                        {{ prediction.match.away_team }}
+                                        {{ prediction.match.away_team }}{% if prediction.match.is_knockout %} qualifies{% endif %}
                                     </button>
                                 </form>
                             {% else %}

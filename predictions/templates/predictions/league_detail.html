@@ -132,6 +132,16 @@
                                 <span class="rank-pill">
                                     #{{ row.rank }}
                                 </span>
+
+                                <span class="rank-movement movement-{{ row.movement_direction }}" aria-label="{{ row.movement_label }}">
+                                    {% if row.movement_direction == "up" %}
+                                        &uarr; {{ row.movement_amount }}
+                                    {% elif row.movement_direction == "down" %}
+                                        &darr; {{ row.movement_amount }}
+                                    {% else %}
+                                        &ndash;
+                                    {% endif %}
+                                </span>
                             </td>
 
                             <td>
