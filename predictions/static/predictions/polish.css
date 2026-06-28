@@ -2390,13 +2390,19 @@ button.button,
     letter-spacing: -0.055em;
 }
 
-.matches-v2-panel-heading p:not(.eyebrow) {
-    max-width: 390px;
-    margin: 0;
-    color: var(--mp-slate-500);
+.matches-v2-question-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.matches-v2-selection-status {
+    color: var(--mp-slate-600);
     font-size: 14px;
-    font-weight: 850;
-    line-height: 1.5;
+    font-weight: 750;
+    letter-spacing: 0;
+    text-transform: none;
 }
 
 .matches-v2-prediction-options {
@@ -2404,6 +2410,11 @@ button.button,
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
     margin: 0;
+}
+
+.matches-v2-prediction-options.is-knockout {
+    grid-template-columns: repeat(2, minmax(160px, 240px));
+    justify-content: center;
 }
 
 .matches-v2-pick-button {

@@ -257,7 +257,7 @@
                                     {% if match.has_scoring_result %}
                                         {{ match.scoring_result_display }}
                                     {% else %}
-                                        Awaiting result
+                                        Awaiting Result
                                     {% endif %}
                                 </strong>
                             </div>
@@ -358,7 +358,7 @@
                                     {% if match.has_scoring_result %}
                                         {{ match.scoring_result_display }}
                                     {% else %}
-                                        Awaiting result
+                                        Awaiting Result
                                     {% endif %}
                                 </strong>
                             </div>
@@ -368,25 +368,42 @@
                             <div class="matches-v2-prediction-panel">
                                 <div class="matches-v2-panel-heading">
                                     <div>
-                                        <p class="eyebrow">{{ match.prediction_question }}</p>
+                                        {% if match.is_knockout %}
+                                            <p class="eyebrow matches-v2-question-line">
+                                                <span>{{ match.prediction_question }}</span>
 
-                                        <h3>
-                                            {% if match.user_prediction %}
-                                                Current pick:
-                                                <span class="current-prediction-text">{{ match.user_prediction.pick_display }}</span>
-                                            {% else %}
-                                                Current pick:
-                                                <span class="current-prediction-text">Not selected yet</span>
-                                            {% endif %}
-                                        </h3>
+                                                <span class="matches-v2-selection-status current-prediction-text">
+                                                    {% if match.user_prediction %}
+                                                        {% if match.user_prediction.prediction == 'home' %}
+                                                            You predicted: {{ match.home_team }} to qualify for the next round!
+                                                        {% elif match.user_prediction.prediction == 'away' %}
+                                                            You predicted: {{ match.away_team }} to qualify for the next round!
+                                                        {% else %}
+                                                            Selection pending
+                                                        {% endif %}
+                                                    {% else %}
+                                                        Selection Pending
+                                                    {% endif %}
+                                                </span>
+                                            </p>
+                                        {% else %}
+                                            <p class="eyebrow">{{ match.prediction_question }}</p>
+
+                                            <h3>
+                                                {% if match.user_prediction %}
+                                                    Current pick:
+                                                    <span class="current-prediction-text">{{ match.user_prediction.pick_display }}</span>
+                                                {% else %}
+                                                    Current pick:
+                                                    <span class="current-prediction-text">Not selected yet</span>
+                                                {% endif %}
+                                            </h3>
+                                        {% endif %}
                                     </div>
 
-                                    <p>
-                                        Your choice is saved once and used across all of your leagues.
-                                    </p>
                                 </div>
 
-                                <form class="prediction-form matches-v2-prediction-options" method="post" action="{% url 'submit_prediction' match.id %}">
+                                <form class="prediction-form matches-v2-prediction-options {% if match.is_knockout %}is-knockout{% endif %}" method="post" action="{% url 'submit_prediction' match.id %}">
                                     {% csrf_token %}
 
                                     <button
@@ -394,12 +411,13 @@
                                         type="submit"
                                         name="prediction"
                                         value="home"
+                                        {% if match.is_knockout %}data-status-text="You predicted: {{ match.home_team }} to qualify for the next round"{% endif %}
                                     >
                                         {% if match.home_team_flag_url %}
                                             <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
                                         {% endif %}
                                         {% if match.is_knockout %}
-                                            {{ match.home_team }} qualifies
+                                            {{ match.home_team }}
                                         {% else %}
                                             {{ match.home_team }} win
                                         {% endif %}
@@ -422,12 +440,13 @@
                                         type="submit"
                                         name="prediction"
                                         value="away"
+                                        {% if match.is_knockout %}data-status-text="You predicted: {{ match.away_team }} to qualify for the next round"{% endif %}
                                     >
                                         {% if match.away_team_flag_url %}
                                             <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
                                         {% endif %}
                                         {% if match.is_knockout %}
-                                            {{ match.away_team }} qualifies
+                                            {{ match.away_team }}
                                         {% else %}
                                             {{ match.away_team }} win
                                         {% endif %}
@@ -435,10 +454,6 @@
                                 </form>
 
                                 <div class="prediction-inline-message" aria-live="polite"></div>
-
-                                <div class="matches-v2-muted-note">
-                                    Prediction trends will appear after voting closes for this match. League picks unlock after kickoff so voting stays fair.
-                                </div>
                             </div>
                         {% else %}
                             <div class="matches-v2-locked-panel">
@@ -913,7 +928,7 @@
                         }
                     });
 
-                    currentPredictionText.textContent = data.prediction_display;
+                    currentPredictionText.textContent = clickedButton.dataset.statusText || data.prediction_display;
 
                     showPredictionToast(matchCard, data.prediction_display);
                 } catch (error) {

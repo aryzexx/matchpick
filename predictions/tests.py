@@ -623,9 +623,37 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Who qualifies?")
-        self.assertContains(response, "France qualifies")
-        self.assertContains(response, "Germany qualifies")
+        self.assertContains(response, "Selection pending")
+        self.assertContains(response, "France")
+        self.assertContains(response, "Germany")
+        self.assertNotContains(response, "France qualifies")
+        self.assertNotContains(response, "Germany qualifies")
         self.assertNotContains(response, 'value="draw"')
+
+    def test_knockout_match_shows_selected_team_in_question_line(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "You predicted: Germany to qualify for the next round",
+        )
+        self.assertNotContains(response, "Current pick:")
 
     def test_knockout_match_rejects_draw_prediction(self):
         match = self.create_match(
@@ -1346,9 +1374,16 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("matches"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(
+        self.assertContains(response, "Argentina win")
+        self.assertContains(response, "Draw")
+        self.assertContains(response, "Brazil win")
+        self.assertNotContains(
             response,
             "Prediction trends will appear after voting closes for this match.",
+        )
+        self.assertNotContains(
+            response,
+            "Your choice is saved once and used across all of your leagues.",
         )
         self.assertNotContains(response, "Voting split after lock")
 
