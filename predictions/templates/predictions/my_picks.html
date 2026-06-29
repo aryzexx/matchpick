@@ -4,9 +4,9 @@
 <section class="page-heading my-picks-v2-heading">
     <p class="eyebrow">
         {% if is_own_picks %}
-            Your prediction history
+            Personal dashboard
         {% else %}
-            Public prediction history
+            Player profile
         {% endif %}
     </p>
 
@@ -14,408 +14,545 @@
 
     <p>
         {% if is_own_picks %}
-            Review matches you have already picked, change open predictions, and track finished results in one simple list.
+            Review your form, revisit saved picks, and compare head-to-head history from one place.
         {% else %}
             {{ readonly_message }}
         {% endif %}
     </p>
 </section>
 
-{% if is_own_picks %}
-    <nav class="my-picks-tabs" aria-label="My Picks sections">
-        <a class="{% if selected_tab == 'history' %}active{% endif %}" href="{% url 'my_picks' %}?tab=history">
-            Picks History
+<nav class="my-picks-tabs dashboard-tabs" aria-label="Dashboard sections">
+    {% if is_own_picks %}
+        <a class="{% if selected_dashboard_tab == 'stats' %}active{% endif %}" href="{% url 'my_picks' %}?tab=stats">
+            My Stats
         </a>
 
-        <a class="{% if selected_tab == 'compare' %}active{% endif %}" href="{% url 'my_picks' %}?tab=compare">
-            Compare Picks
+        <a class="{% if selected_dashboard_tab == 'picks' %}active{% endif %}" href="{% url 'my_picks' %}?tab=picks">
+            My Picks
         </a>
-    </nav>
-{% endif %}
+    {% else %}
+        <a class="{% if selected_dashboard_tab == 'stats' %}active{% endif %}" href="{% url 'user_picks' viewed_user.id %}?tab=stats">
+            Stats
+        </a>
 
-{% if player_stats and selected_tab == 'history' %}
-<section class="my-picks-stats-card" aria-label="Player stats summary">
-    <div class="leaderboard-v2-table-heading">
-        <div>
-            <p class="eyebrow">Player stats</p>
+        <a class="{% if selected_dashboard_tab == 'picks' %}active{% endif %}" href="{% url 'user_picks' viewed_user.id %}?tab=picks">
+            Public picks
+        </a>
+    {% endif %}
+</nav>
 
-            <h2>
-                {% if is_own_picks %}
-                    Your form guide
-                {% else %}
-                    {{ viewed_user.username }}'s visible form
-                {% endif %}
-            </h2>
-        </div>
+{% if selected_dashboard_tab == 'stats' %}
+    {% if player_stats %}
+        <section class="my-picks-stats-card" aria-label="Player stats summary">
+            <div class="leaderboard-v2-table-heading">
+                <div>
+                    <p class="eyebrow">My Stats</p>
 
-        <span class="leaderboard-v2-context-pill">
-            {% if is_own_picks %}
-                Includes open picks
-            {% else %}
-                Public picks only
-            {% endif %}
-        </span>
-    </div>
-
-    <div class="my-picks-stat-grid">
-        <article class="my-picks-stat-card">
-            <span>Total points</span>
-            <strong>{{ player_stats.total_points }}</strong>
-        </article>
-
-        <article class="my-picks-stat-card">
-            <span>Accuracy</span>
-            <strong>{{ player_stats.accuracy }}</strong>
-        </article>
-
-        <article class="my-picks-stat-card">
-            <span>Correct picks</span>
-            <strong>{{ player_stats.correct_picks }}</strong>
-        </article>
-
-        <article class="my-picks-stat-card">
-            <span>Incorrect picks</span>
-            <strong>{{ player_stats.incorrect_picks }}</strong>
-        </article>
-
-        <article class="my-picks-stat-card">
-            <span>Missed picks</span>
-            <strong>{{ player_stats.missed_picks }}</strong>
-        </article>
-
-        {% if player_stats.show_open_picks %}
-            <article class="my-picks-stat-card">
-                <span>Open picks</span>
-                <strong>{{ player_stats.open_picks }}</strong>
-            </article>
-        {% endif %}
-
-        <article class="my-picks-stat-card">
-            <span>Finished picks</span>
-            <strong>{{ player_stats.finished_picks }}</strong>
-        </article>
-
-        <article class="my-picks-stat-card">
-            <span>Draw pick rate</span>
-            <strong>{{ player_stats.draw_pick_rate }}</strong>
-        </article>
-    </div>
-
-    <div class="my-picks-stat-detail-grid">
-        <article class="my-picks-stat-detail-card">
-            <span>Favourite team picked</span>
-            <strong>
-                {% if player_stats.favourite_team %}
-                    {{ player_stats.favourite_team }}
-                {% else %}
-                    No team picks yet
-                {% endif %}
-            </strong>
-
-            {% if player_stats.favourite_team %}
-                <p>{{ player_stats.favourite_team_count }} pick{{ player_stats.favourite_team_count|pluralize }}</p>
-            {% endif %}
-        </article>
-
-        <article class="my-picks-stat-detail-card">
-            <span>Recent form</span>
-
-            <div class="my-picks-form-strip" aria-label="Recent finished pick form">
-                {% for item in player_stats.recent_form %}
-                    <span class="my-picks-form-dot {{ item.class }}" title="{{ item.match.display_name_plain }}">
-                        {{ item.label }}
-                    </span>
-                {% empty %}
-                    <span class="my-picks-form-dot is-neutral">&ndash;</span>
-                {% endfor %}
-            </div>
-        </article>
-    </div>
-</section>
-{% endif %}
-
-{% if selected_tab == 'compare' and is_own_picks %}
-<section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card compare-picks-card">
-    <div class="leaderboard-v2-table-heading">
-        <div>
-            <p class="eyebrow">Compare Picks</p>
-
-            <h2>Head-to-head picks</h2>
-        </div>
-
-        <span class="leaderboard-v2-context-pill">Locked matches only</span>
-    </div>
-
-    <p class="my-picks-readonly-note">
-        Compare Picks only uses matches where voting is locked or finished.
-    </p>
-
-    <form class="compare-picks-form" method="get" action="{% url 'my_picks' %}">
-        <input type="hidden" name="tab" value="compare">
-
-        <label for="compare-user-id">Compare with</label>
-
-        <select id="compare-user-id" name="compare_user_id">
-            <option value="">Choose a player</option>
-
-            {% for user_option in compare_user_options %}
-                <option value="{{ user_option.id }}" {% if selected_compare_user_id == user_option.id|stringformat:"s" %}selected{% endif %}>
-                    {{ user_option.username }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <button class="button primary compact" type="submit">
-            Compare
-        </button>
-    </form>
-
-    {% if selected_compare_user %}
-        {% if compare_summary %}
-            <div class="compare-summary-grid" aria-label="Compare picks summary">
-                <article class="compare-summary-card">
-                    <span>Matches compared</span>
-                    <strong>{{ compare_summary.matches_compared }}</strong>
-                </article>
-
-                <article class="compare-summary-card">
-                    <span>Same picks</span>
-                    <strong>{{ compare_summary.same_picks }}</strong>
-                </article>
-
-                <article class="compare-summary-card">
-                    <span>Different picks</span>
-                    <strong>{{ compare_summary.different_picks }}</strong>
-                </article>
-
-                <article class="compare-summary-card">
-                    <span>{{ request.user.username }} correct</span>
-                    <strong>{{ compare_summary.user_a_correct }}</strong>
-                </article>
-
-                <article class="compare-summary-card">
-                    <span>{{ selected_compare_user.username }} correct</span>
-                    <strong>{{ compare_summary.user_b_correct }}</strong>
-                </article>
-
-                <article class="compare-summary-card">
-                    <span>Both correct</span>
-                    <strong>{{ compare_summary.both_correct }}</strong>
-                </article>
-
-                <article class="compare-summary-card">
-                    <span>Both incorrect</span>
-                    <strong>{{ compare_summary.both_incorrect }}</strong>
-                </article>
-
-                <article class="compare-summary-card is-winner">
-                    <span>Head-to-head winner</span>
-                    <strong>
-                        {% if compare_summary.head_to_head_winner %}
-                            {{ compare_summary.head_to_head_winner }}
+                    <h2>
+                        {% if is_own_picks %}
+                            Your form guide
                         {% else %}
-                            Level
+                            {{ viewed_user.username }}'s visible form
+                        {% endif %}
+                    </h2>
+                </div>
+
+                <span class="leaderboard-v2-context-pill">
+                    {% if is_own_picks %}
+                        Personal analytics
+                    {% else %}
+                        Public picks only
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if is_own_picks and open_picks_remaining > 0 %}
+                <div class="dashboard-action-strip">
+                    <div>
+                        <strong>Action needed: {{ open_picks_remaining }} open pick{{ open_picks_remaining|pluralize }} remaining</strong>
+                        <span>Voting is open now.</span>
+                    </div>
+
+                    <a class="button primary compact" href="{% url 'matches' %}">
+                        Go to Matches
+                    </a>
+                </div>
+            {% endif %}
+
+            <div class="my-picks-stat-grid">
+                <article class="my-picks-stat-card">
+                    <span>Total points</span>
+                    <strong>{{ player_stats.total_points }}</strong>
+                </article>
+
+                <article class="my-picks-stat-card">
+                    <span>Accuracy</span>
+                    <strong>{{ player_stats.accuracy }}</strong>
+                </article>
+
+                <article class="my-picks-stat-card">
+                    <span>Correct picks</span>
+                    <strong>{{ player_stats.correct_picks }}</strong>
+                </article>
+
+                <article class="my-picks-stat-card">
+                    <span>Incorrect picks</span>
+                    <strong>{{ player_stats.incorrect_picks }}</strong>
+                </article>
+
+                <article class="my-picks-stat-card">
+                    <span>Missed picks</span>
+                    <strong>{{ player_stats.missed_picks }}</strong>
+                </article>
+
+                <article class="my-picks-stat-card">
+                    <span>Finished picks</span>
+                    <strong>{{ player_stats.finished_picks }}</strong>
+                </article>
+
+                <article class="my-picks-stat-card">
+                    <span>Draw pick rate</span>
+                    <strong>{{ player_stats.draw_pick_rate }}</strong>
+                </article>
+            </div>
+
+            <div class="my-picks-stat-detail-grid">
+                <article class="my-picks-stat-detail-card">
+                    <span>Favourite team picked</span>
+                    <strong>
+                        {% if player_stats.favourite_team %}
+                            {{ player_stats.favourite_team }}
+                        {% else %}
+                            No team picks yet
                         {% endif %}
                     </strong>
+
+                    {% if player_stats.favourite_team %}
+                        <p>{{ player_stats.favourite_team_count }} pick{{ player_stats.favourite_team_count|pluralize }}</p>
+                    {% endif %}
+                </article>
+
+                <article class="my-picks-stat-detail-card">
+                    <span>Recent form</span>
+
+                    <div class="my-picks-form-strip" aria-label="Recent finished pick form">
+                        {% for item in player_stats.recent_form %}
+                            <span class="my-picks-form-dot {{ item.class }}" title="{{ item.match.display_name_plain }}">
+                                {{ item.label }}
+                            </span>
+                        {% empty %}
+                            <span class="my-picks-form-dot is-neutral">&ndash;</span>
+                        {% endfor %}
+                    </div>
                 </article>
             </div>
-        {% endif %}
+        </section>
+    {% endif %}
 
-        {% if not compare_rows %}
-            <p class="compare-empty-state">
-                No shared locked or finished picks are available for these players yet.
+    <section class="leaderboard-table-card leaderboard-v2-table-card dashboard-analytics-card">
+        <div class="leaderboard-v2-table-heading">
+            <div>
+                <p class="eyebrow">Personal Stage Accuracy</p>
+
+                <h2>Accuracy by stage</h2>
+            </div>
+        </div>
+
+        <div class="dashboard-bar-list">
+            {% for row in stage_accuracy %}
+                <div class="dashboard-bar-row">
+                    <div class="dashboard-bar-row-top">
+                        <strong>{{ row.stage_label }}</strong>
+                        <span>{{ row.correct_picks }}/{{ row.finished_picks }} correct - {{ row.accuracy }}</span>
+                    </div>
+
+                    <div class="dashboard-bar-track">
+                        <div class="dashboard-bar-fill" style="--bar-width: {{ row.accuracy_value }}%;"></div>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="dashboard-empty-state">
+                    Stage accuracy will appear after finished picks have scoring results.
+                </p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="leaderboard-table-card leaderboard-v2-table-card dashboard-analytics-card">
+        <div class="leaderboard-v2-table-heading">
+            <div>
+                <p class="eyebrow">User vs Crowd</p>
+
+                <h2>How your picks compare</h2>
+            </div>
+        </div>
+
+        <div class="dashboard-crowd-grid">
+            <article>
+                <span>Followed the crowd</span>
+                <strong>{{ user_vs_crowd.followed_crowd }}</strong>
+            </article>
+
+            <article>
+                <span>Went against the crowd</span>
+                <strong>{{ user_vs_crowd.went_against_crowd }}</strong>
+            </article>
+
+            <article>
+                <span>Correct when following</span>
+                <strong>{{ user_vs_crowd.correct_when_following }}</strong>
+            </article>
+
+            <article>
+                <span>Correct when against</span>
+                <strong>{{ user_vs_crowd.correct_when_against }}</strong>
+            </article>
+
+            <article>
+                <span>Contrarian success rate</span>
+                <strong>{{ user_vs_crowd.contrarian_success_rate }}</strong>
+            </article>
+        </div>
+
+        {% if user_vs_crowd.compared_matches == 0 %}
+            <p class="dashboard-empty-state">
+                Crowd comparison will appear once locked or finished shared picks are available.
+            </p>
+        {% elif user_vs_crowd.split_crowd_matches > 0 %}
+            <p class="my-picks-readonly-note">
+                {{ user_vs_crowd.split_crowd_matches }} split-crowd match{{ user_vs_crowd.split_crowd_matches|pluralize:"es" }} skipped.
+            </p>
+        {% endif %}
+    </section>
+
+    <section class="leaderboard-table-card leaderboard-v2-table-card dashboard-analytics-card">
+        <div class="leaderboard-v2-table-heading">
+            <div>
+                <p class="eyebrow">Pick Style</p>
+
+                <h2>Higher-ranked and lower-ranked picks</h2>
+            </div>
+
+            <span class="leaderboard-v2-context-pill">{{ pick_style.snapshot_label }}</span>
+        </div>
+
+        {% if not pick_style.has_ranked_picks %}
+            <p class="dashboard-empty-state">
+                Ranking data pending. Not enough ranked picks yet.
             </p>
         {% endif %}
 
-        <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
-            <table class="leaderboard-table leaderboard-v2-table my-picks-table compare-picks-table">
-                <thead>
-                    <tr>
-                        <th>Fixture</th>
-                        <th>{{ request.user.username }} pick</th>
-                        <th>{{ selected_compare_user.username }} pick</th>
-                        <th>Result</th>
-                    </tr>
-                </thead>
+        <div class="dashboard-bar-list">
+            {% for row in pick_style.rows %}
+                <div class="dashboard-bar-row {{ row.class }}">
+                    <div class="dashboard-bar-row-top">
+                        <strong>{{ row.label }}</strong>
+                        <span>{{ row.count }} pick{{ row.count|pluralize }} - {{ row.percentage }}</span>
+                    </div>
 
-                <tbody>
-                    {% for row in compare_rows %}
-                        <tr>
-                            <td>
-                                <span class="my-picks-team team-inline">
-                                    {% if row.match.home_team_flag_url %}
-                                        <img class="team-flag-img" src="{{ row.match.home_team_flag_url }}" alt="{{ row.match.home_team }} flag" loading="lazy">
-                                    {% endif %}
-                                    <span>{{ row.match.home_team }}</span>
-                                </span>
-
-                                <span class="my-picks-versus">vs</span>
-
-                                <span class="my-picks-team team-inline">
-                                    {% if row.match.away_team_flag_url %}
-                                        <img class="team-flag-img" src="{{ row.match.away_team_flag_url }}" alt="{{ row.match.away_team }} flag" loading="lazy">
-                                    {% endif %}
-                                    <span>{{ row.match.away_team }}</span>
-                                </span>
-                            </td>
-
-                            <td class="compare-pick-cell {{ row.user_a_pick_class }}">
-                                {{ row.user_a_prediction.pick_display }}
-                            </td>
-
-                            <td class="compare-pick-cell {{ row.user_b_pick_class }}">
-                                {{ row.user_b_prediction.pick_display }}
-                            </td>
-
-                            <td>
-                                {% if row.match.has_scoring_result %}
-                                    {{ row.match.scoring_result_display }}
-                                {% else %}
-                                    Awaiting result
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="4">
-                                No shared locked or finished picks are available for these players yet.
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    <div class="dashboard-bar-track">
+                        <div class="dashboard-bar-fill" style="--bar-width: {{ row.percentage_value }}%;"></div>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
-    {% endif %}
-</section>
+    </section>
 {% else %}
-<section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card">
-    <div class="leaderboard-v2-table-heading">
-        <div>
-            <p class="eyebrow">Picked matches</p>
+    {% if is_own_picks %}
+        <nav class="my-picks-tabs my-picks-subtabs" aria-label="My Picks sections">
+            <a class="{% if selected_picks_tab == 'history' %}active{% endif %}" href="{% url 'my_picks' %}?tab=picks">
+                Picks History
+            </a>
 
-            <h2>{{ history_heading }}</h2>
-        </div>
-
-        <span class="leaderboard-v2-context-pill">
-            {% if is_own_picks %}
-                Personal
-            {% else %}
-                Read-only
-            {% endif %}
-        </span>
-    </div>
-
-    {% if readonly_message %}
-        <p class="my-picks-readonly-note">
-            {{ readonly_message }}
-        </p>
+            <a class="{% if selected_picks_tab == 'compare' %}active{% endif %}" href="{% url 'my_picks' %}?tab=compare">
+                Compare Picks
+            </a>
+        </nav>
     {% endif %}
 
-    <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
-        <table class="leaderboard-table leaderboard-v2-table my-picks-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Kickoff</th>
-                    <th>Match</th>
-                    <th>Your Pick</th>
-                    <th>Result</th>
-                    <th>Status</th>
-                    <th>Change Pick</th>
-                </tr>
-            </thead>
+    {% if selected_picks_tab == 'compare' and is_own_picks %}
+        <section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card compare-picks-card">
+            <div class="leaderboard-v2-table-heading">
+                <div>
+                    <p class="eyebrow">Compare Picks</p>
 
-            <tbody>
-                {% for prediction in predictions %}
-                    <tr class="my-picks-row {{ prediction.result_row_class }}">
-                        <td>{{ prediction.match.kickoff_time|date:"d M Y" }}</td>
+                    <h2>Head-to-head picks</h2>
+                </div>
 
-                        <td>{{ prediction.match.kickoff_time|date:"H:i" }}</td>
+                <span class="leaderboard-v2-context-pill">Locked matches only</span>
+            </div>
 
-                        <td>
-                            <span class="my-picks-team team-inline">
-                                {% if prediction.match.home_team_flag_url %}
-                                    <img class="team-flag-img" src="{{ prediction.match.home_team_flag_url }}" alt="{{ prediction.match.home_team }} flag" loading="lazy">
+            <p class="my-picks-readonly-note">
+                Compare Picks only uses matches where voting is locked or finished.
+            </p>
+
+            <form class="compare-picks-form" method="get" action="{% url 'my_picks' %}">
+                <input type="hidden" name="tab" value="compare">
+
+                <label for="compare-user-id">Compare with</label>
+
+                <select id="compare-user-id" name="compare_user_id">
+                    <option value="">Choose a player</option>
+
+                    {% for user_option in compare_user_options %}
+                        <option value="{{ user_option.id }}" {% if selected_compare_user_id == user_option.id|stringformat:"s" %}selected{% endif %}>
+                            {{ user_option.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <button class="button primary compact" type="submit">
+                    Compare
+                </button>
+            </form>
+
+            {% if selected_compare_user %}
+                {% if compare_summary %}
+                    <div class="compare-summary-grid" aria-label="Compare picks summary">
+                        <article class="compare-summary-card">
+                            <span>Matches compared</span>
+                            <strong>{{ compare_summary.matches_compared }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card">
+                            <span>Same picks</span>
+                            <strong>{{ compare_summary.same_picks }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card">
+                            <span>Different picks</span>
+                            <strong>{{ compare_summary.different_picks }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card">
+                            <span>{{ request.user.username }} correct</span>
+                            <strong>{{ compare_summary.user_a_correct }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card">
+                            <span>{{ selected_compare_user.username }} correct</span>
+                            <strong>{{ compare_summary.user_b_correct }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card">
+                            <span>Both correct</span>
+                            <strong>{{ compare_summary.both_correct }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card">
+                            <span>Both incorrect</span>
+                            <strong>{{ compare_summary.both_incorrect }}</strong>
+                        </article>
+
+                        <article class="compare-summary-card is-winner">
+                            <span>Head-to-head winner</span>
+                            <strong>
+                                {% if compare_summary.head_to_head_winner %}
+                                    {{ compare_summary.head_to_head_winner }}
+                                {% else %}
+                                    Level
                                 {% endif %}
-                                <span>{{ prediction.match.home_team }}</span>
-                            </span>
+                            </strong>
+                        </article>
+                    </div>
+                {% endif %}
 
-                            <span class="my-picks-versus">vs</span>
+                {% if not compare_rows %}
+                    <p class="compare-empty-state">
+                        No shared locked or finished picks are available for these players yet.
+                    </p>
+                {% endif %}
 
-                            <span class="my-picks-team team-inline">
-                                {% if prediction.match.away_team_flag_url %}
-                                    <img class="team-flag-img" src="{{ prediction.match.away_team_flag_url }}" alt="{{ prediction.match.away_team }} flag" loading="lazy">
-                                {% endif %}
-                                <span>{{ prediction.match.away_team }}</span>
-                            </span>
-                        </td>
+                <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
+                    <table class="leaderboard-table leaderboard-v2-table my-picks-table compare-picks-table">
+                        <thead>
+                            <tr>
+                                <th>Fixture</th>
+                                <th>{{ request.user.username }} pick</th>
+                                <th>{{ selected_compare_user.username }} pick</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
 
-                        <td>{{ prediction.pick_display }}</td>
+                        <tbody>
+                            {% for row in compare_rows %}
+                                <tr>
+                                    <td>
+                                        <span class="my-picks-team team-inline">
+                                            {% if row.match.home_team_flag_url %}
+                                                <img class="team-flag-img" src="{{ row.match.home_team_flag_url }}" alt="{{ row.match.home_team }} flag" loading="lazy">
+                                            {% endif %}
+                                            <span>{{ row.match.home_team }}</span>
+                                        </span>
 
-                        <td>
-                            {% if prediction.match.has_scoring_result %}
-                                {{ prediction.match.scoring_result_display }}
-                            {% else %}
-                                Awaiting result
-                            {% endif %}
-                        </td>
+                                        <span class="my-picks-versus">vs</span>
 
-                        <td>
-                            <span class="status-pill my-picks-status-pill {% if prediction.voting_is_open %}open{% else %}locked{% endif %}">
-                                {{ prediction.status_label }}
-                            </span>
-                        </td>
+                                        <span class="my-picks-team team-inline">
+                                            {% if row.match.away_team_flag_url %}
+                                                <img class="team-flag-img" src="{{ row.match.away_team_flag_url }}" alt="{{ row.match.away_team }} flag" loading="lazy">
+                                            {% endif %}
+                                            <span>{{ row.match.away_team }}</span>
+                                        </span>
+                                    </td>
 
-                        <td>
-                            {% if prediction.can_edit %}
-                                <form class="my-picks-choice-form" method="post" action="{% url 'submit_prediction' prediction.match.id %}">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <td class="compare-pick-cell {{ row.user_a_pick_class }}">
+                                        {{ row.user_a_prediction.pick_display }}
+                                    </td>
 
-                                    <button
-                                        class="my-picks-choice {% if prediction.prediction == 'home' %}selected{% endif %}"
-                                        type="submit"
-                                        name="prediction"
-                                        value="home"
-                                    >
-                                        {{ prediction.match.home_team }}{% if prediction.match.is_knockout %} qualifies{% endif %}
-                                    </button>
+                                    <td class="compare-pick-cell {{ row.user_b_pick_class }}">
+                                        {{ row.user_b_prediction.pick_display }}
+                                    </td>
 
-                                    {% if prediction.match.allows_draw_prediction %}
-                                        <button
-                                            class="my-picks-choice {% if prediction.prediction == 'draw' %}selected{% endif %}"
-                                            type="submit"
-                                            name="prediction"
-                                            value="draw"
-                                        >
-                                            Draw
-                                        </button>
+                                    <td>
+                                        {% if row.match.has_scoring_result %}
+                                            {{ row.match.scoring_result_display }}
+                                        {% else %}
+                                            Awaiting result
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="4">
+                                        No shared locked or finished picks are available for these players yet.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </section>
+    {% else %}
+        <section class="leaderboard-table-card leaderboard-v2-table-card my-picks-card">
+            <div class="leaderboard-v2-table-heading">
+                <div>
+                    <p class="eyebrow">Picked matches</p>
+
+                    <h2>{{ history_heading }}</h2>
+                </div>
+
+                <span class="leaderboard-v2-context-pill">
+                    {% if is_own_picks %}
+                        Personal
+                    {% else %}
+                        Read-only
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if readonly_message %}
+                <p class="my-picks-readonly-note">
+                    {{ readonly_message }}
+                </p>
+            {% endif %}
+
+            <div class="table-wrapper leaderboard-v2-table-wrapper my-picks-table-wrapper">
+                <table class="leaderboard-table leaderboard-v2-table my-picks-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Kickoff</th>
+                            <th>Match</th>
+                            <th>Your Pick</th>
+                            <th>Result</th>
+                            <th>Status</th>
+                            <th>Change Pick</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for prediction in predictions %}
+                            <tr class="my-picks-row {{ prediction.result_row_class }}">
+                                <td>{{ prediction.match.kickoff_time|date:"d M Y" }}</td>
+
+                                <td>{{ prediction.match.kickoff_time|date:"H:i" }}</td>
+
+                                <td>
+                                    <span class="my-picks-team team-inline">
+                                        {% if prediction.match.home_team_flag_url %}
+                                            <img class="team-flag-img" src="{{ prediction.match.home_team_flag_url }}" alt="{{ prediction.match.home_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        <span>{{ prediction.match.home_team }}</span>
+                                    </span>
+
+                                    <span class="my-picks-versus">vs</span>
+
+                                    <span class="my-picks-team team-inline">
+                                        {% if prediction.match.away_team_flag_url %}
+                                            <img class="team-flag-img" src="{{ prediction.match.away_team_flag_url }}" alt="{{ prediction.match.away_team }} flag" loading="lazy">
+                                        {% endif %}
+                                        <span>{{ prediction.match.away_team }}</span>
+                                    </span>
+                                </td>
+
+                                <td>{{ prediction.pick_display }}</td>
+
+                                <td>
+                                    {% if prediction.match.has_scoring_result %}
+                                        {{ prediction.match.scoring_result_display }}
+                                    {% else %}
+                                        Awaiting result
                                     {% endif %}
+                                </td>
 
-                                    <button
-                                        class="my-picks-choice {% if prediction.prediction == 'away' %}selected{% endif %}"
-                                        type="submit"
-                                        name="prediction"
-                                        value="away"
-                                    >
-                                        {{ prediction.match.away_team }}{% if prediction.match.is_knockout %} qualifies{% endif %}
-                                    </button>
-                                </form>
-                            {% else %}
-                                <span class="my-picks-locked-text">Locked</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="7">
-                            {{ history_empty_message }}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
+                                <td>
+                                    <span class="status-pill my-picks-status-pill {% if prediction.voting_is_open %}open{% else %}locked{% endif %}">
+                                        {{ prediction.status_label }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    {% if prediction.can_edit %}
+                                        <form class="my-picks-choice-form" method="post" action="{% url 'submit_prediction' prediction.match.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+                                            <button
+                                                class="my-picks-choice {% if prediction.prediction == 'home' %}selected{% endif %}"
+                                                type="submit"
+                                                name="prediction"
+                                                value="home"
+                                            >
+                                                {{ prediction.match.home_team }}{% if prediction.match.is_knockout %} qualifies{% endif %}
+                                            </button>
+
+                                            {% if prediction.match.allows_draw_prediction %}
+                                                <button
+                                                    class="my-picks-choice {% if prediction.prediction == 'draw' %}selected{% endif %}"
+                                                    type="submit"
+                                                    name="prediction"
+                                                    value="draw"
+                                                >
+                                                    Draw
+                                                </button>
+                                            {% endif %}
+
+                                            <button
+                                                class="my-picks-choice {% if prediction.prediction == 'away' %}selected{% endif %}"
+                                                type="submit"
+                                                name="prediction"
+                                                value="away"
+                                            >
+                                                {{ prediction.match.away_team }}{% if prediction.match.is_knockout %} qualifies{% endif %}
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="my-picks-locked-text">Locked</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="7">
+                                    {{ history_empty_message }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
 {% endif %}
 {% endblock %}

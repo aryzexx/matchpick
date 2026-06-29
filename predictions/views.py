@@ -14,6 +14,11 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from .data.fifa_rankings_snapshot import (
+    SNAPSHOT_LABEL,
+    get_team_ranking,
+    is_placeholder_team_name,
+)
 from .forms import JoinLeagueForm, RegisterForm
 from .models import CompetitionGroup, GroupMember, Match, Prediction, get_team_flag
 
@@ -991,6 +996,249 @@ def build_player_stats(predictions, include_open_stats):
     }
 
 
+def count_open_picks_remaining(user):
+    open_match_ids = []
+
+    for match in Match.objects.all().order_by("kickoff_time", "home_team"):
+        voting_is_open, _ = get_prediction_availability(match)
+
+        if voting_is_open:
+            open_match_ids.append(match.id)
+
+    if not open_match_ids:
+        return 0
+
+    picked_open_match_count = (
+        Prediction.objects.filter(user=user, match_id__in=open_match_ids)
+        .values("match_id")
+        .distinct()
+        .count()
+    )
+
+    remaining = len(open_match_ids) - picked_open_match_count
+
+    if remaining < 0:
+        return 0
+
+    return remaining
+
+
+def build_stage_accuracy(predictions):
+    stage_rows_by_key = {}
+
+    for prediction in predictions:
+        match = prediction.match
+        scoring_result = match.get_scoring_result()
+
+        if scoring_result is None:
+            continue
+
+        if match.stage not in stage_rows_by_key:
+            stage_rows_by_key[match.stage] = {
+                "stage": match.stage,
+                "stage_label": match.get_stage_display(),
+                "correct_picks": 0,
+                "finished_picks": 0,
+                "accuracy": "0%",
+                "accuracy_value": 0,
+            }
+
+        row = stage_rows_by_key[match.stage]
+        row["finished_picks"] += 1
+
+        if prediction.prediction == scoring_result:
+            row["correct_picks"] += 1
+
+    stage_order = {stage: index for index, (stage, _label) in enumerate(Match.STAGE_CHOICES)}
+    rows = sorted(
+        stage_rows_by_key.values(),
+        key=lambda row: stage_order.get(row["stage"], 999),
+    )
+
+    for row in rows:
+        row["accuracy"] = format_percentage(
+            row["correct_picks"],
+            row["finished_picks"],
+        )
+        row["accuracy_value"] = percentage(
+            row["correct_picks"],
+            row["finished_picks"],
+        )
+
+    return rows
+
+
+def get_crowd_pick_for_match(match):
+    trends = get_prediction_trends_for_match(match)
+
+    if trends["total_predictions"] <= 0:
+        return None, False
+
+    highest_count = max(option["count"] for option in trends["options"])
+
+    if highest_count <= 0:
+        return None, False
+
+    top_options = [
+        option for option in trends["options"] if option["count"] == highest_count
+    ]
+
+    if len(top_options) != 1:
+        return None, True
+
+    return top_options[0]["key"], False
+
+
+def build_user_vs_crowd(predictions):
+    followed_crowd = 0
+    went_against_crowd = 0
+    correct_when_following = 0
+    correct_when_against = 0
+    split_crowd_matches = 0
+    compared_matches = 0
+
+    for prediction in predictions:
+        match = prediction.match
+
+        if not pick_is_publicly_visible(match):
+            continue
+
+        valid_options = {
+            Prediction.PREDICTION_HOME,
+            Prediction.PREDICTION_AWAY,
+        }
+
+        if match.allows_draw_prediction:
+            valid_options.add(Prediction.PREDICTION_DRAW)
+
+        if prediction.prediction not in valid_options:
+            continue
+
+        crowd_pick, crowd_was_split = get_crowd_pick_for_match(match)
+
+        if crowd_was_split:
+            split_crowd_matches += 1
+            continue
+
+        if crowd_pick is None:
+            continue
+
+        compared_matches += 1
+        scoring_result = match.get_scoring_result()
+        pick_was_correct = (
+            scoring_result is not None and prediction.prediction == scoring_result
+        )
+
+        if prediction.prediction == crowd_pick:
+            followed_crowd += 1
+
+            if pick_was_correct:
+                correct_when_following += 1
+        else:
+            went_against_crowd += 1
+
+            if pick_was_correct:
+                correct_when_against += 1
+
+    return {
+        "followed_crowd": followed_crowd,
+        "went_against_crowd": went_against_crowd,
+        "correct_when_following": correct_when_following,
+        "correct_when_against": correct_when_against,
+        "contrarian_success_rate": format_percentage(
+            correct_when_against,
+            went_against_crowd,
+        ),
+        "compared_matches": compared_matches,
+        "split_crowd_matches": split_crowd_matches,
+    }
+
+
+def build_pick_style(predictions):
+    higher_ranked_picks = 0
+    lower_ranked_picks = 0
+    draw_picks = 0
+    unknown_ranking = 0
+
+    for prediction in predictions:
+        match = prediction.match
+
+        if prediction.prediction == Prediction.PREDICTION_DRAW:
+            draw_picks += 1
+            continue
+
+        if prediction.prediction == Prediction.PREDICTION_HOME:
+            picked_team = match.home_team
+            opponent = match.away_team
+        elif prediction.prediction == Prediction.PREDICTION_AWAY:
+            picked_team = match.away_team
+            opponent = match.home_team
+        else:
+            unknown_ranking += 1
+            continue
+
+        if is_placeholder_team_name(picked_team) or is_placeholder_team_name(opponent):
+            continue
+
+        picked_rank = get_team_ranking(picked_team)
+        opponent_rank = get_team_ranking(opponent)
+
+        if picked_rank is None or opponent_rank is None:
+            unknown_ranking += 1
+            continue
+
+        if picked_rank < opponent_rank:
+            higher_ranked_picks += 1
+        elif picked_rank > opponent_rank:
+            lower_ranked_picks += 1
+        else:
+            unknown_ranking += 1
+
+    rows = [
+        {
+            "label": "Higher-ranked picks",
+            "count": higher_ranked_picks,
+            "class": "is-higher-ranked",
+        },
+        {
+            "label": "Lower-ranked picks",
+            "count": lower_ranked_picks,
+            "class": "is-lower-ranked",
+        },
+        {
+            "label": "Draw picks",
+            "count": draw_picks,
+            "class": "is-draw-pick",
+        },
+    ]
+
+    if unknown_ranking > 0:
+        rows.append(
+            {
+                "label": "Unknown ranking",
+                "count": unknown_ranking,
+                "class": "is-unknown-ranking",
+            }
+        )
+
+    total_picks = sum(row["count"] for row in rows)
+
+    for row in rows:
+        row["percentage"] = format_percentage(row["count"], total_picks)
+        row["percentage_value"] = percentage(row["count"], total_picks)
+
+    ranked_pick_count = higher_ranked_picks + lower_ranked_picks
+
+    return {
+        "snapshot_label": SNAPSHOT_LABEL,
+        "rows": rows,
+        "total_picks": total_picks,
+        "ranked_pick_count": ranked_pick_count,
+        "has_ranked_picks": ranked_pick_count > 0,
+        "unknown_ranking": unknown_ranking,
+    }
+
+
 def decorate_pick_history_predictions(predictions, can_edit):
     for prediction in predictions:
         match = prediction.match
@@ -1385,10 +1633,17 @@ def matches(request):
 
 @login_required
 def my_picks(request):
-    selected_tab = request.GET.get("tab", "history")
+    requested_tab = request.GET.get("tab", "stats")
 
-    if selected_tab not in {"history", "compare"}:
-        selected_tab = "history"
+    if requested_tab == "compare":
+        selected_dashboard_tab = "picks"
+        selected_picks_tab = "compare"
+    elif requested_tab in {"history", "picks"}:
+        selected_dashboard_tab = "picks"
+        selected_picks_tab = "history"
+    else:
+        selected_dashboard_tab = "stats"
+        selected_picks_tab = "history"
 
     predictions = decorate_pick_history_predictions(
         list(
@@ -1399,6 +1654,10 @@ def my_picks(request):
         can_edit=True,
     )
     player_stats = build_player_stats(predictions, include_open_stats=True)
+    stage_accuracy = build_stage_accuracy(predictions)
+    user_vs_crowd = build_user_vs_crowd(predictions)
+    pick_style = build_pick_style(predictions)
+    open_picks_remaining = count_open_picks_remaining(request.user)
 
     compare_user_options = list(
         User.objects.filter(predictions__isnull=False)
@@ -1436,10 +1695,16 @@ def my_picks(request):
         {
             "predictions": predictions,
             "player_stats": player_stats,
-            "selected_tab": selected_tab,
+            "stage_accuracy": stage_accuracy,
+            "user_vs_crowd": user_vs_crowd,
+            "pick_style": pick_style,
+            "open_picks_remaining": open_picks_remaining,
+            "selected_tab": selected_picks_tab,
+            "selected_dashboard_tab": selected_dashboard_tab,
+            "selected_picks_tab": selected_picks_tab,
             "viewed_user": request.user,
             "is_own_picks": True,
-            "page_title": "My Picks",
+            "page_title": "My Dashboard",
             "history_heading": "Your saved picks",
             "history_empty_message": "You have not made any picks yet.",
             "readonly_message": "",
@@ -1456,6 +1721,17 @@ def my_picks(request):
 def user_picks(request, user_id):
     viewed_user = get_object_or_404(User, id=user_id)
     is_own_picks = viewed_user == request.user
+    requested_tab = request.GET.get("tab", "stats")
+
+    if requested_tab == "compare" and is_own_picks:
+        selected_dashboard_tab = "picks"
+        selected_picks_tab = "compare"
+    elif requested_tab in {"history", "picks"}:
+        selected_dashboard_tab = "picks"
+        selected_picks_tab = "history"
+    else:
+        selected_dashboard_tab = "stats"
+        selected_picks_tab = "history"
 
     predictions_queryset = (
         Prediction.objects.filter(user=viewed_user)
@@ -1477,17 +1753,53 @@ def user_picks(request, user_id):
         can_edit=is_own_picks,
     )
     player_stats = build_player_stats(predictions, include_open_stats=is_own_picks)
+    stage_accuracy = build_stage_accuracy(predictions)
+    user_vs_crowd = build_user_vs_crowd(predictions)
+    pick_style = build_pick_style(predictions)
+    open_picks_remaining = (
+        count_open_picks_remaining(request.user) if is_own_picks else 0
+    )
 
     if is_own_picks:
-        page_title = "My Picks"
+        page_title = "My Dashboard"
         history_heading = "Your saved picks"
         history_empty_message = "You have not made any picks yet."
         readonly_message = ""
+        compare_user_options = list(
+            User.objects.filter(predictions__isnull=False)
+            .exclude(id=request.user.id)
+            .distinct()
+            .order_by("username")
+        )
     else:
         page_title = f"{viewed_user.username}'s past picks"
         history_heading = f"{viewed_user.username}'s past picks"
         history_empty_message = "No locked or finished picks are visible yet."
         readonly_message = "Only locked and finished picks are shown for fairness."
+        compare_user_options = []
+
+    selected_compare_user = None
+    selected_compare_user_id = request.GET.get("compare_user_id")
+    compare_rows = []
+    compare_summary = None
+
+    if is_own_picks and selected_compare_user_id:
+        selected_compare_user = next(
+            (
+                user
+                for user in compare_user_options
+                if str(user.id) == selected_compare_user_id
+            ),
+            None,
+        )
+
+    if is_own_picks and selected_compare_user:
+        compare_rows = build_compare_rows(request.user, selected_compare_user)
+        compare_summary = build_compare_summary(
+            compare_rows,
+            request.user,
+            selected_compare_user,
+        )
 
     return render(
         request,
@@ -1495,18 +1807,24 @@ def user_picks(request, user_id):
         {
             "predictions": predictions,
             "player_stats": player_stats,
-            "selected_tab": "history",
+            "stage_accuracy": stage_accuracy,
+            "user_vs_crowd": user_vs_crowd,
+            "pick_style": pick_style,
+            "open_picks_remaining": open_picks_remaining,
+            "selected_tab": selected_picks_tab,
+            "selected_dashboard_tab": selected_dashboard_tab,
+            "selected_picks_tab": selected_picks_tab,
             "viewed_user": viewed_user,
             "is_own_picks": is_own_picks,
             "page_title": page_title,
             "history_heading": history_heading,
             "history_empty_message": history_empty_message,
             "readonly_message": readonly_message,
-            "compare_user_options": [],
-            "selected_compare_user": None,
-            "selected_compare_user_id": "",
-            "compare_rows": [],
-            "compare_summary": None,
+            "compare_user_options": compare_user_options,
+            "selected_compare_user": selected_compare_user,
+            "selected_compare_user_id": selected_compare_user_id or "",
+            "compare_rows": compare_rows,
+            "compare_summary": compare_summary,
         },
     )
 

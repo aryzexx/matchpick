@@ -36,7 +36,7 @@
                     </a>
 
                     <a href="{% url 'my_picks' %}" class="{% if request.resolver_match.url_name == 'my_picks' %}active{% endif %}">
-                        My Picks
+                        My Dashboard
                     </a>
 
                     <a href="{% url 'leagues' %}" class="{% if request.resolver_match.url_name == 'leagues' or request.resolver_match.url_name == 'league_detail' %}active{% endif %}">

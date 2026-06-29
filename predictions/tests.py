@@ -8,7 +8,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .admin import MatchAdmin
+from .data.fifa_rankings_snapshot import get_team_ranking, is_placeholder_team_name
 from .models import CompetitionGroup, GroupMember, Match, Prediction
+from .views import build_pick_style, build_user_vs_crowd
 
 
 User = get_user_model()
@@ -382,7 +384,7 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Argentina")
         self.assertContains(response, "Brazil")
         self.assertContains(response, "Voting Open")
-        self.assertContains(response, "Awaiting result")
+        self.assertContains(response, "Awaiting Result")
 
     def test_collapsed_match_summary_shows_finished_user_outcome_indicator(self):
         finished_match = self.create_match(
@@ -422,10 +424,64 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("my_picks"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "My Dashboard")
+        self.assertContains(response, "My Stats")
         self.assertContains(response, "My Picks")
+
+    def test_navbar_shows_my_dashboard_instead_of_my_picks(self):
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "My Dashboard")
+        self.assertNotContains(response, ">My Picks</a>", html=False)
+
+    def test_my_picks_defaults_to_my_stats(self):
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Personal Stage Accuracy")
+        self.assertContains(response, "User vs Crowd")
+        self.assertContains(response, "Pick Style")
+
+    def test_my_picks_history_alias_still_shows_pick_history(self):
+        match = self.create_match(kickoff_delta_hours=24)
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(f"{reverse('my_picks')}?tab=history")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your saved picks")
         self.assertContains(response, "Argentina")
         self.assertContains(response, "Argentina flag")
         self.assertContains(response, "Home win")
+
+    def test_my_picks_tab_shows_pick_history(self):
+        match = self.create_match(kickoff_delta_hours=24)
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(f"{reverse('my_picks')}?tab=picks")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your saved picks")
+        self.assertContains(response, "Argentina")
 
     def test_user_picks_self_view_shows_open_picks(self):
         open_match = self.create_match(
@@ -442,7 +498,9 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("user_picks", args=[self.aryan.id]))
+        response = self.client.get(
+            f"{reverse('user_picks', args=[self.aryan.id])}?tab=picks"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Canada")
@@ -463,7 +521,9 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("user_picks", args=[self.friend.id]))
+        response = self.client.get(
+            f"{reverse('user_picks', args=[self.friend.id])}?tab=picks"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Only locked and finished picks are shown for fairness.")
@@ -498,7 +558,9 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("user_picks", args=[self.friend.id]))
+        response = self.client.get(
+            f"{reverse('user_picks', args=[self.friend.id])}?tab=picks"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "friend&#x27;s past picks")
@@ -520,7 +582,9 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("user_picks", args=[self.friend.id]))
+        response = self.client.get(
+            f"{reverse('user_picks', args=[self.friend.id])}?tab=picks"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Read-only")
@@ -528,7 +592,7 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertNotContains(response, 'name="prediction"')
 
     def test_anonymous_user_is_redirected_from_my_picks(self):
-        response = self.client.get(reverse("my_picks"))
+        response = self.client.get(f"{reverse('my_picks')}?tab=picks")
 
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse("login"), response["Location"])
@@ -558,7 +622,7 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("my_picks"))
+        response = self.client.get(f"{reverse('my_picks')}?tab=picks")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Argentina")
@@ -575,7 +639,7 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("my_picks"))
+        response = self.client.get(f"{reverse('my_picks')}?tab=picks")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Draw")
@@ -585,13 +649,13 @@ class MatchPickUpdateThreeTests(TestCase):
             reverse("submit_prediction", args=[match.id]),
             {
                 "prediction": Prediction.PREDICTION_AWAY,
-                "next": reverse("my_picks"),
+                "next": f"{reverse('my_picks')}?tab=picks",
             },
             follow=True,
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "My Picks")
+        self.assertContains(response, "My Dashboard")
 
         prediction = Prediction.objects.get(user=self.aryan, match=match)
 
@@ -813,7 +877,7 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.login_as_aryan()
 
-        response = self.client.get(reverse("my_picks"))
+        response = self.client.get(f"{reverse('my_picks')}?tab=picks")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Home win")
@@ -831,9 +895,14 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Compare Picks only uses matches where voting is locked or finished.")
 
     def test_my_picks_shows_player_stats_summary_for_self(self):
-        open_match = self.create_match(
+        picked_open_match = self.create_match(
             home_team="Canada",
             away_team="Mexico",
+            kickoff_delta_hours=24,
+        )
+        self.create_match(
+            home_team="Spain",
+            away_team="Portugal",
             kickoff_delta_hours=24,
         )
         correct_match = self.create_match(
@@ -847,7 +916,7 @@ class MatchPickUpdateThreeTests(TestCase):
 
         Prediction.objects.create(
             user=self.aryan,
-            match=open_match,
+            match=picked_open_match,
             prediction=Prediction.PREDICTION_HOME,
         )
         Prediction.objects.create(
@@ -861,13 +930,186 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("my_picks"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Player stats")
-        self.assertContains(response, "Includes open picks")
-        self.assertContains(response, "Open picks")
+        self.assertContains(response, "My Stats")
+        self.assertContains(response, "Personal analytics")
+        self.assertContains(response, "Action needed: 1 open pick remaining")
         self.assertContains(response, "Total points")
+        self.assertContains(response, "Draw pick rate")
         self.assertContains(response, "3")
         self.assertContains(response, "100%")
         self.assertContains(response, "my-picks-form-dot is-win")
+        self.assertNotContains(response, "<span>Open picks</span>", html=False)
+
+    def test_dashboard_renders_personal_stage_accuracy(self):
+        group_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        knockout_match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_16,
+            qualified_team=Match.RESULT_AWAY,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=group_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=knockout_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Personal Stage Accuracy")
+        self.assertContains(response, "Group Stage")
+        self.assertContains(response, "Round of 16")
+        self.assertContains(response, "1/1 correct - 100%")
+
+    def test_dashboard_renders_user_vs_crowd_and_excludes_open_matches(self):
+        third_user = User.objects.create_user(
+            username="third",
+            password="Testpass123!",
+        )
+        finished_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        open_match = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_delta_hours=24,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=third_user,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=open_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=open_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        predictions = list(
+            Prediction.objects.filter(user=self.aryan).select_related("match")
+        )
+        crowd_stats = build_user_vs_crowd(predictions)
+
+        self.assertEqual(crowd_stats["compared_matches"], 1)
+        self.assertEqual(crowd_stats["followed_crowd"], 1)
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "User vs Crowd")
+        self.assertContains(response, "Followed the crowd")
+        self.assertContains(response, "Went against the crowd")
+        self.assertContains(response, "Contrarian success rate")
+
+    def test_dashboard_pick_style_renders_ranking_snapshot(self):
+        match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=24,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pick Style")
+        self.assertContains(
+            response,
+            "FIFA/Coca-Cola Men&#x27;s World Ranking",
+        )
+        self.assertContains(response, "Higher-ranked picks")
+        self.assertContains(response, "1 pick - 100%")
+
+    def test_fifa_ranking_snapshot_handles_aliases_and_placeholders(self):
+        self.assertEqual(get_team_ranking("Brazil"), 5)
+        self.assertEqual(get_team_ranking("United States"), 15)
+        self.assertEqual(get_team_ranking("Korea Republic"), 32)
+        self.assertTrue(is_placeholder_team_name("1A"))
+        self.assertTrue(is_placeholder_team_name("3A/B/C/D/F"))
+        self.assertTrue(is_placeholder_team_name("W100"))
+        self.assertTrue(is_placeholder_team_name("L101"))
+        self.assertIsNone(get_team_ranking("1A"))
+
+    def test_pick_style_skips_placeholder_teams(self):
+        placeholder_match = self.create_match(
+            home_team="1A",
+            away_team="Brazil",
+            kickoff_delta_hours=24,
+        )
+        ranked_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=24,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=placeholder_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=ranked_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        predictions = list(
+            Prediction.objects.filter(user=self.aryan).select_related("match")
+        )
+        pick_style = build_pick_style(predictions)
+
+        self.assertEqual(pick_style["total_picks"], 1)
+        self.assertEqual(pick_style["unknown_ranking"], 0)
 
     def test_public_user_stats_do_not_include_open_picks(self):
         open_match = self.create_match(
@@ -900,11 +1142,11 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("user_picks", args=[self.friend.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Player stats")
+        self.assertContains(response, "Player profile")
         self.assertContains(response, "Public picks only")
         self.assertContains(response, "France")
         self.assertNotContains(response, "Canada")
-        self.assertNotContains(response, "Open picks")
+        self.assertNotContains(response, "<span>Open picks</span>", html=False)
 
     def test_compare_picks_does_not_expose_active_open_picks(self):
         open_match = self.create_match(
