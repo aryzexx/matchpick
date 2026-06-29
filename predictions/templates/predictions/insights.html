@@ -180,7 +180,7 @@
             <div>
                 <p class="eyebrow">Crowd Accuracy by Stage</p>
 
-                <h2>How often the crowd has called it</h2>
+                <h2>How Accurate Has The Crowd Been?</h2>
             </div>
 
             <span class="leaderboard-scope-pill dark-text">
@@ -209,7 +209,7 @@
 
         {% if crowd_accuracy_by_stage.split_crowd_matches > 0 %}
             <p class="my-picks-readonly-note insights-split-note">
-                {{ crowd_accuracy_by_stage.split_crowd_matches }} split-crowd match{{ crowd_accuracy_by_stage.split_crowd_matches|pluralize:"es" }} skipped.
+                {{ crowd_accuracy_by_stage.split_crowd_matches }} match{{ crowd_accuracy_by_stage.split_crowd_matches|pluralize:" was,es were" }} excluded because the crowd was split evenly, so there was no clear majority pick.
             </p>
         {% endif %}
     </section>
@@ -302,33 +302,6 @@
                 <p>No favourite trend yet.</p>
             {% endif %}
         </article>
-
-        <article class="insights-v2-feature-card draw-feature-card">
-            <span class="insights-v2-card-label">Most Predicted Draw</span>
-
-            {% if most_predicted_draw %}
-                <strong class="insights-v2-primary-metric">
-                    {{ most_predicted_draw.percentage }}%
-                </strong>
-
-                <div class="insights-v2-fixture-code-line">
-                    {% team_code_with_flag most_predicted_draw.match.home_team "insights-v2-code-flag" %}
-                    <span class="mini-versus">vs</span>
-                    {% team_code_with_flag most_predicted_draw.match.away_team "insights-v2-code-flag" %}
-                </div>
-
-                <span class="visually-hidden">
-                    {{ most_predicted_draw.match.home_team }} vs {{ most_predicted_draw.match.away_team }}
-                </span>
-            {% else %}
-                <strong class="insights-v2-empty-value">—</strong>
-
-                <p>No draw trend yet.</p>
-            {% endif %}
-        </article>
-    </section>
-
-    <section class="insights-v2-secondary-feature-grid">
         <article class="insights-v2-feature-card insights-v2-fixture-feature-card">
             <span class="insights-v2-card-label">Most Divided</span>
 
@@ -353,145 +326,6 @@
             {% endif %}
         </article>
 
-        <article class="insights-v2-feature-card insights-v2-fixture-feature-card">
-            <span class="insights-v2-card-label">Crowd Was Right</span>
-
-            {% if crowd_right %}
-                <strong class="insights-v2-fixture-code-line">
-                    {% team_code_with_flag crowd_right.match.home_team "insights-v2-code-flag" %}
-                    <span class="mini-versus">vs</span>
-                    {% team_code_with_flag crowd_right.match.away_team "insights-v2-code-flag" %}
-                </strong>
-
-                <p>
-                    <strong>{{ crowd_right.top_option.percentage }}%</strong>
-                    backed the correct popular pick.
-                </p>
-
-                <span class="visually-hidden">
-                    {{ crowd_right.match.home_team }} vs {{ crowd_right.match.away_team }}
-                </span>
-            {% else %}
-                <strong class="insights-v2-empty-value">—</strong>
-
-                <p>No finished match where the crowd favourite was right yet.</p>
-            {% endif %}
-        </article>
-
-        <article class="insights-v2-feature-card insights-v2-fixture-feature-card">
-            <span class="insights-v2-card-label">Crowd Was Wrong</span>
-
-            {% if crowd_wrong %}
-                <strong class="insights-v2-fixture-code-line">
-                    {% team_code_with_flag crowd_wrong.match.home_team "insights-v2-code-flag" %}
-                    <span class="mini-versus">vs</span>
-                    {% team_code_with_flag crowd_wrong.match.away_team "insights-v2-code-flag" %}
-                </strong>
-
-                <p>
-                    <strong>{{ crowd_wrong.top_option.percentage }}%</strong>
-                    backed a popular pick that lost.
-                </p>
-
-                <span class="visually-hidden">
-                    {{ crowd_wrong.match.home_team }} vs {{ crowd_wrong.match.away_team }}
-                </span>
-            {% else %}
-                <strong class="insights-v2-empty-value">—</strong>
-
-                <p>No finished match where the crowd favourite was wrong yet.</p>
-            {% endif %}
-        </article>
     </section>
-
-    {% if recent_trend_matches %}
-        <section class="leaderboard-table-card insights-v2-trend-board">
-            <div class="section-title-row insights-v2-trend-board-heading">
-                <div>
-                    <p class="eyebrow">Recently locked</p>
-
-                    <h2>Match voting splits</h2>
-                </div>
-
-                <span class="leaderboard-scope-pill dark-text">After lock only</span>
-            </div>
-
-            <div class="trend-card-grid insights-v2-trend-card-grid">
-                {% for item in recent_trend_matches %}
-                    <article class="match-trend-card insights-v2-match-trend-card">
-                        <div class="match-trend-heading">
-                            <div>
-                                <p class="match-stage">{{ item.match.get_stage_display }}</p>
-
-                                <h3 class="insights-v2-fixture-code-line trend-heading-line">
-                                    {% team_code_with_flag item.match.home_team "insights-v2-code-flag large" %}
-                                    <span class="mini-versus">vs</span>
-                                    {% team_code_with_flag item.match.away_team "insights-v2-code-flag large" %}
-                                </h3>
-
-                                <p class="insights-v2-kickoff-line">
-                                    Kickoff: {{ item.match.kickoff_time|date:"D, d M Y H:i" }}
-                                </p>
-
-                                <span class="visually-hidden">
-                                    {{ item.match.home_team }} vs {{ item.match.away_team }}
-                                </span>
-                            </div>
-
-                            <span class="trend-total">
-                                {{ item.trends.total_predictions }} picks
-                            </span>
-                        </div>
-
-                        <div class="trend-list">
-                            {% for option in item.trends.options %}
-                                <div class="trend-row">
-                                    <div class="trend-row-top">
-                                        <span>
-                                            {% if option.key == 'home' %}
-                                                {% team_code_with_flag item.match.home_team "insights-v2-code-flag" %}
-                                            {% elif option.key == 'away' %}
-                                                {% team_code_with_flag item.match.away_team "insights-v2-code-flag" %}
-                                            {% else %}
-                                                Draw
-                                            {% endif %}
-                                        </span>
-
-                                        <strong>{{ option.percentage }}%</strong>
-                                    </div>
-
-                                    <div class="trend-track">
-                                        <div class="trend-fill" style="--trend-width: {{ option.percentage }}%;"></div>
-                                    </div>
-
-                                    <span class="trend-count">
-                                        {{ option.count }} pick{% if option.count != 1 %}s{% endif %}
-                                    </span>
-                                </div>
-                            {% endfor %}
-                        </div>
-
-                        {% if item.match.has_scoring_result %}
-                            <p class="trend-footnote insights-v2-result-note">
-                                Final result: {{ item.match.score_display }} - {{ item.match.scoring_result_display }}
-                            </p>
-                        {% else %}
-                            <p class="trend-footnote insights-v2-result-note">
-                                Result not available yet.
-                            </p>
-                        {% endif %}
-                    </article>
-                {% endfor %}
-            </div>
-        </section>
-    {% else %}
-        <section class="glass-card elevated-card">
-            <h2>No insights available yet</h2>
-
-            <p>
-                Prediction trends will appear here after at least one match has locked and has submitted picks.
-            </p>
-        </section>
-    {% endif %}
 </div>
 {% endblock %}

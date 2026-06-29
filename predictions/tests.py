@@ -443,8 +443,9 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("my_picks"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Personal Stage Accuracy")
-        self.assertContains(response, "User vs Crowd")
+        self.assertContains(response, "Accuracy by Stage")
+        self.assertContains(response, "How Have You Fared Across This World Cup?")
+        self.assertContains(response, "YOU VS EVERYONE")
         self.assertContains(response, "Pick Style")
 
     def test_my_picks_history_alias_still_shows_pick_history(self):
@@ -932,6 +933,7 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "My Stats")
         self.assertContains(response, "Personal analytics")
+        self.assertContains(response, "Your Form Guide")
         self.assertContains(response, "Action needed: 1 open pick remaining")
         self.assertContains(response, "Total points")
         self.assertContains(response, "Draw pick rate")
@@ -976,7 +978,8 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("my_picks"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Personal Stage Accuracy")
+        self.assertContains(response, "Accuracy by Stage")
+        self.assertContains(response, "How Have You Fared Across This World Cup?")
         self.assertContains(response, "Group Stage")
         self.assertContains(response, "Round of 16")
         self.assertContains(response, "1/1 correct - 100%")
@@ -1039,10 +1042,45 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("my_picks"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "User vs Crowd")
-        self.assertContains(response, "Followed the crowd")
-        self.assertContains(response, "Went against the crowd")
-        self.assertContains(response, "Contrarian success rate")
+        self.assertContains(response, "YOU VS EVERYONE")
+        self.assertContains(response, "How Your Picks Compare")
+        self.assertContains(response, "Followed the Crowd")
+        self.assertContains(response, "Went Against the Crowd")
+        self.assertContains(response, "Right With the Crowd")
+        self.assertContains(response, "Right Against the Crowd")
+        self.assertContains(response, "Against-Crowd Accuracy")
+        self.assertContains(response, "1 time")
+
+    def test_dashboard_explains_split_crowd_exclusions(self):
+        finished_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("my_picks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "1 match was excluded because the crowd was split evenly, so there was no clear majority pick.",
+        )
 
     def test_dashboard_pick_style_renders_ranking_snapshot(self):
         match = self.create_match(
@@ -1067,7 +1105,10 @@ class MatchPickUpdateThreeTests(TestCase):
             response,
             "FIFA/Coca-Cola Men&#x27;s World Ranking",
         )
-        self.assertContains(response, "Higher-ranked picks")
+        self.assertContains(response, "Do You Back Favourites or Underdogs?")
+        self.assertContains(response, "Backed the Favourites")
+        self.assertContains(response, "Backed the Underdogs")
+        self.assertContains(response, "Draw Picks")
         self.assertContains(response, "1 pick - 100%")
 
     def test_fifa_ranking_snapshot_handles_aliases_and_placeholders(self):
@@ -1582,10 +1623,14 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Predict once. Compete everywhere.")
         self.assertContains(response, "MP")
         self.assertContains(response, "New in MatchPick")
-        self.assertContains(response, "View My Picks")
+        self.assertContains(response, "New Features, Better Predictions")
+        self.assertContains(response, "My Dashboard")
+        self.assertContains(response, "Knockout Mode")
+        self.assertContains(response, "Insights Analytics")
+        self.assertContains(response, "View My Dashboard")
         self.assertContains(response, reverse("my_picks"))
-        self.assertContains(response, "View Matches")
-        self.assertContains(response, reverse("matches"))
+        self.assertContains(response, "View Insights")
+        self.assertContains(response, reverse("insights"))
 
     def test_insights_page_requires_login(self):
         response = self.client.get(reverse("insights"))
@@ -1604,6 +1649,7 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Points Progression")
         self.assertContains(response, "Rank Race")
         self.assertContains(response, "Crowd Accuracy by Stage")
+        self.assertContains(response, "How Accurate Has The Crowd Been?")
         self.assertContains(response, "Recent Form Board")
 
     def test_insights_progression_uses_daily_snapshots(self):
@@ -1930,7 +1976,10 @@ class MatchPickUpdateThreeTests(TestCase):
             response.context["crowd_accuracy_by_stage"]["split_crowd_matches"],
             1,
         )
-        self.assertContains(response, "1 split-crowd match skipped")
+        self.assertContains(
+            response,
+            "1 match was excluded because the crowd was split evenly, so there was no clear majority pick.",
+        )
 
     def test_match_card_hides_prediction_trends_before_kickoff(self):
         match = self.create_match(kickoff_delta_hours=24)
@@ -1986,7 +2035,7 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Brazil flag")
         self.assertContains(response, "50%")
 
-    def test_insights_page_shows_locked_match_voting_split(self):
+    def test_insights_page_keeps_core_summary_cards_and_removes_redundant_sections(self):
         match = self.create_match(
             home_team="Australia",
             away_team="Turkey",
@@ -2015,9 +2064,16 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "Australia flag")
         self.assertContains(response, "Turkey flag")
         self.assertContains(response, "Most Backed Team")
+        self.assertContains(response, "Biggest Favourite")
+        self.assertContains(response, "Most Divided")
         self.assertContains(response, "Australia")
         self.assertContains(response, "100%")
-        self.assertContains(response, "2 picks")
+        self.assertContains(response, "win picks")
+        self.assertNotContains(response, "Most Predicted Draw")
+        self.assertNotContains(response, "Crowd Was Right")
+        self.assertNotContains(response, "Crowd Was Wrong")
+        self.assertNotContains(response, "Recently locked")
+        self.assertNotContains(response, "Match voting splits")
 
     def test_global_leaderboard_card_shows_tied_fewest_missed_players(self):
         third_user = User.objects.create_user(

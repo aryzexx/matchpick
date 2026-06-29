@@ -1790,17 +1790,17 @@ def build_pick_style(predictions):
 
     rows = [
         {
-            "label": "Higher-ranked picks",
+            "label": "Backed the Favourites",
             "count": higher_ranked_picks,
             "class": "is-higher-ranked",
         },
         {
-            "label": "Lower-ranked picks",
+            "label": "Backed the Underdogs",
             "count": lower_ranked_picks,
             "class": "is-lower-ranked",
         },
         {
-            "label": "Draw picks",
+            "label": "Draw Picks",
             "count": draw_picks,
             "class": "is-draw-pick",
         },

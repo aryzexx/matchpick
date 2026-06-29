@@ -3370,6 +3370,16 @@ button.button,
     box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
 }
 
+.my-picks-stats-card .my-picks-stat-card,
+.my-picks-stats-card .my-picks-stat-detail-card {
+    justify-items: center;
+    text-align: center;
+}
+
+.my-picks-stats-card .my-picks-form-strip {
+    justify-content: center;
+}
+
 .my-picks-stat-card span,
 .compare-summary-card span,
 .my-picks-stat-detail-card span {
@@ -3504,24 +3514,28 @@ button.button,
 .dashboard-crowd-grid article {
     display: grid;
     gap: 8px;
+    align-content: center;
+    justify-items: center;
     min-height: 94px;
     padding: 16px;
     border-radius: var(--mp-radius-lg);
     background: rgba(248, 250, 252, 0.95);
     border: 1px solid rgba(148, 163, 184, 0.24);
+    text-align: center;
 }
 
 .dashboard-crowd-grid span {
     color: var(--mp-slate-500);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 950;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .dashboard-crowd-grid strong {
     color: var(--mp-navy-800);
-    font-size: 26px;
+    font-size: 22px;
     font-weight: 950;
     letter-spacing: -0.05em;
 }
@@ -3778,6 +3792,10 @@ button.button,
     .dashboard-crowd-grid,
     .my-picks-stat-detail-grid {
         grid-template-columns: 1fr;
+    }
+
+    .dashboard-crowd-grid span {
+        white-space: normal;
     }
 
     .dashboard-bar-row-top {
@@ -8249,89 +8267,4 @@ h3,
     font-size: 12px;
     font-weight: 850;
     letter-spacing: 0.02em;
-}
-/* ==========================================================================
-   Stage 24.9 — Recent Locked Voting Split Polish
-   ONLY fixes recent locked match voting cards.
-   ========================================================================== */
-
-/* Make "Recently locked" green like the other section labels. */
-.insights-v2-trend-board-heading .eyebrow,
-.insights-v2-trend-board .eyebrow {
-    color: var(--mp-green-600) !important;
-}
-
-/* Centre the match header content inside each voting split card. */
-.insights-v2-match-trend-card .match-trend-heading {
-    grid-template-columns: 1fr !important;
-    text-align: center !important;
-    justify-items: center !important;
-    gap: 14px !important;
-}
-
-.insights-v2-match-trend-card .match-trend-heading > div {
-    display: grid !important;
-    justify-items: center !important;
-    text-align: center !important;
-    width: 100% !important;
-}
-
-/* Group Stage centred. */
-.insights-v2-match-trend-card .match-stage {
-    width: 100% !important;
-    text-align: center !important;
-    color: var(--mp-slate-500) !important;
-}
-
-/* Fixture centred. */
-.insights-v2-match-trend-card .trend-heading-line {
-    justify-content: center !important;
-    text-align: center !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-}
-
-/* Kickoff centred. */
-.insights-v2-kickoff-line,
-.insights-v2-match-trend-card .match-trend-heading p:not(.match-stage) {
-    width: 100% !important;
-    text-align: center !important;
-    color: var(--mp-slate-500) !important;
-}
-
-/* Keep the pick count badge centred below the title block. */
-.insights-v2-match-trend-card .trend-total {
-    justify-self: center !important;
-    margin: 0 auto !important;
-}
-
-/* Voting options: keep labels clean after removing "win". */
-.insights-v2-match-trend-card .trend-row-top > span {
-    justify-content: flex-start !important;
-}
-
-.insights-v2-match-trend-card .trend-row-top .team-code-inline span:not(.visually-hidden) {
-    font-size: 16px !important;
-    letter-spacing: 0 !important;
-}
-
-/* Emphasise the result note without making the font bigger. */
-.insights-v2-result-note,
-.insights-v2-match-trend-card .trend-footnote {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    min-height: 54px !important;
-    padding: 14px 18px !important;
-    border-radius: 18px !important;
-    background:
-        linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.92)) !important;
-    border: 1px solid rgba(148, 163, 184, 0.22) !important;
-    color: rgba(226, 232, 240, 0.88) !important;
-    text-align: center !important;
-    font-size: 14px !important;
-    font-weight: 850 !important;
-    box-shadow:
-        0 14px 28px rgba(15, 23, 42, 0.14),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }

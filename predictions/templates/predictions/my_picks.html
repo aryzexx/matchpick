@@ -50,7 +50,7 @@
 
                     <h2>
                         {% if is_own_picks %}
-                            Your form guide
+                            Your Form Guide
                         {% else %}
                             {{ viewed_user.username }}'s visible form
                         {% endif %}
@@ -152,9 +152,9 @@
     <section class="leaderboard-table-card leaderboard-v2-table-card dashboard-analytics-card">
         <div class="leaderboard-v2-table-heading">
             <div>
-                <p class="eyebrow">Personal Stage Accuracy</p>
+                <p class="eyebrow">Accuracy by Stage</p>
 
-                <h2>Accuracy by stage</h2>
+                <h2>How Have You Fared Across This World Cup?</h2>
             </div>
         </div>
 
@@ -181,35 +181,35 @@
     <section class="leaderboard-table-card leaderboard-v2-table-card dashboard-analytics-card">
         <div class="leaderboard-v2-table-heading">
             <div>
-                <p class="eyebrow">User vs Crowd</p>
+                <p class="eyebrow">YOU VS EVERYONE</p>
 
-                <h2>How your picks compare</h2>
+                <h2>How Your Picks Compare</h2>
             </div>
         </div>
 
         <div class="dashboard-crowd-grid">
             <article>
-                <span>Followed the crowd</span>
-                <strong>{{ user_vs_crowd.followed_crowd }}</strong>
+                <span>Followed the Crowd</span>
+                <strong>{{ user_vs_crowd.followed_crowd }} time{{ user_vs_crowd.followed_crowd|pluralize }}</strong>
             </article>
 
             <article>
-                <span>Went against the crowd</span>
-                <strong>{{ user_vs_crowd.went_against_crowd }}</strong>
+                <span>Went Against the Crowd</span>
+                <strong>{{ user_vs_crowd.went_against_crowd }} time{{ user_vs_crowd.went_against_crowd|pluralize }}</strong>
             </article>
 
             <article>
-                <span>Correct when following</span>
-                <strong>{{ user_vs_crowd.correct_when_following }}</strong>
+                <span>Right With the Crowd</span>
+                <strong>{{ user_vs_crowd.correct_when_following }} time{{ user_vs_crowd.correct_when_following|pluralize }}</strong>
             </article>
 
             <article>
-                <span>Correct when against</span>
-                <strong>{{ user_vs_crowd.correct_when_against }}</strong>
+                <span>Right Against the Crowd</span>
+                <strong>{{ user_vs_crowd.correct_when_against }} time{{ user_vs_crowd.correct_when_against|pluralize }}</strong>
             </article>
 
             <article>
-                <span>Contrarian success rate</span>
+                <span>Against-Crowd Accuracy</span>
                 <strong>{{ user_vs_crowd.contrarian_success_rate }}</strong>
             </article>
         </div>
@@ -218,9 +218,11 @@
             <p class="dashboard-empty-state">
                 Crowd comparison will appear once locked or finished shared picks are available.
             </p>
-        {% elif user_vs_crowd.split_crowd_matches > 0 %}
+        {% endif %}
+
+        {% if user_vs_crowd.split_crowd_matches > 0 %}
             <p class="my-picks-readonly-note">
-                {{ user_vs_crowd.split_crowd_matches }} split-crowd match{{ user_vs_crowd.split_crowd_matches|pluralize:"es" }} skipped.
+                {{ user_vs_crowd.split_crowd_matches }} match{{ user_vs_crowd.split_crowd_matches|pluralize:" was,es were" }} excluded because the crowd was split evenly, so there was no clear majority pick.
             </p>
         {% endif %}
     </section>
@@ -230,7 +232,7 @@
             <div>
                 <p class="eyebrow">Pick Style</p>
 
-                <h2>Higher-ranked and lower-ranked picks</h2>
+                <h2>Do You Back Favourites or Underdogs?</h2>
             </div>
 
             <span class="leaderboard-v2-context-pill">{{ pick_style.snapshot_label }}</span>
