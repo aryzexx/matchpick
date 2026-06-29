@@ -1601,6 +1601,336 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Insights")
         self.assertContains(response, "Trends unlock after kickoff")
+        self.assertContains(response, "Points Progression")
+        self.assertContains(response, "Rank Race")
+        self.assertContains(response, "Crowd Accuracy by Stage")
+        self.assertContains(response, "Recent Form Board")
+
+    def test_insights_progression_uses_daily_snapshots(self):
+        base_time = timezone.now() - timedelta(days=3)
+        day_one_first = self.create_match(
+            kickoff_time=base_time,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        day_one_second = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_time=base_time + timedelta(hours=3),
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=0,
+        )
+        day_two = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_time=base_time + timedelta(days=1),
+            status=Match.STATUS_FINISHED,
+            home_score=0,
+            away_score=1,
+        )
+
+        for match in [day_one_first, day_one_second, day_two]:
+            Prediction.objects.create(
+                user=self.aryan,
+                match=match,
+                prediction=Prediction.PREDICTION_HOME,
+            )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["insights_timeline_snapshot_count"], 2)
+        self.assertContains(response, 'data-point-count="2"')
+
+    def test_insights_x_axis_labels_use_clean_calendar_intervals(self):
+        base_time = timezone.now() - timedelta(days=20)
+
+        for index in range(18):
+            match = self.create_match(
+                kickoff_time=base_time + timedelta(days=index),
+                status=Match.STATUS_FINISHED,
+                home_score=2,
+                away_score=1,
+            )
+            Prediction.objects.create(
+                user=self.aryan,
+                match=match,
+                prediction=Prediction.PREDICTION_HOME,
+            )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["insights_points_chart"]["point_count"], 18)
+        point_x_labels = response.context["insights_points_chart"]["x_labels"]
+        rank_x_labels = response.context["insights_rank_chart"]["x_labels"]
+        expected_offsets = [0, 3, 6, 9, 12, 15, 17]
+
+        self.assertEqual(len(point_x_labels), 7)
+        self.assertEqual(len(rank_x_labels), 7)
+        self.assertEqual(
+            [label["day_offset"] for label in point_x_labels],
+            expected_offsets,
+        )
+        self.assertEqual(
+            [label["day_offset"] for label in rank_x_labels],
+            expected_offsets,
+        )
+        self.assertTrue(
+            point_x_labels[1]["x"] - point_x_labels[0]["x"]
+            > point_x_labels[-1]["x"] - point_x_labels[-2]["x"]
+        )
+
+    def test_insights_points_y_axis_labels_show_clean_scale(self):
+        for index in range(4):
+            match = self.create_match(
+                home_team=f"Home {index}",
+                away_team=f"Away {index}",
+                kickoff_delta_hours=-2,
+                status=Match.STATUS_FINISHED,
+                home_score=2,
+                away_score=1,
+            )
+            Prediction.objects.create(
+                user=self.aryan,
+                match=match,
+                prediction=Prediction.PREDICTION_HOME,
+            )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        point_y_labels = [
+            label["label"]
+            for label in response.context["insights_points_chart"]["y_labels"]
+        ]
+        self.assertEqual(point_y_labels, ["12", "6", "0"])
+        self.assertContains(response, "12")
+        self.assertContains(response, "6")
+
+    def test_insights_rank_y_axis_labels_show_two_user_ranks(self):
+        match = self.create_match(
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        rank_y_labels = [
+            label["label"]
+            for label in response.context["insights_rank_chart"]["y_labels"]
+        ]
+        self.assertEqual(rank_y_labels, ["#1", "#2"])
+        self.assertContains(response, "#1")
+        self.assertContains(response, "#2")
+
+    def test_insights_progression_uses_group_and_knockout_scoring(self):
+        group_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        knockout_match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-1,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_16,
+            qualified_team=Match.RESULT_AWAY,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=group_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=knockout_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        aryan_series = next(
+            series
+            for series in response.context["insights_points_chart"]["series"]
+            if series["username"] == "aryan"
+        )
+        self.assertEqual(aryan_series["latest_value"], 6)
+        self.assertContains(response, "Round of 16")
+        self.assertContains(response, "100%")
+
+    def test_insights_excludes_active_open_picks(self):
+        finished_match = self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        open_match = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_delta_hours=24,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=open_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Argentina")
+        self.assertNotContains(response, "Canada")
+        self.assertNotContains(response, "Mexico")
+
+    def test_insights_display_rule_includes_all_users_when_competition_is_small(self):
+        finished_match = self.create_match(
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        usernames = [
+            series["username"]
+            for series in response.context["insights_points_chart"]["series"]
+        ]
+        self.assertEqual(usernames, ["aryan", "friend"])
+
+    def test_insights_display_rule_limits_large_competitions_but_keeps_current_user(self):
+        finished_match = self.create_match(
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+        top_users = []
+
+        for index in range(1, 16):
+            user = User.objects.create_user(
+                username=f"player{index:02d}",
+                password="Testpass123!",
+            )
+            GroupMember.objects.create(
+                user=user,
+                group=self.family,
+                role=GroupMember.ROLE_MEMBER,
+            )
+
+            if index <= 5:
+                top_users.append(user)
+                Prediction.objects.create(
+                    user=user,
+                    match=finished_match,
+                    prediction=Prediction.PREDICTION_HOME,
+                )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=finished_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        usernames = [
+            series["username"]
+            for series in response.context["insights_points_chart"]["series"]
+        ]
+        self.assertEqual(len(usernames), 6)
+        self.assertIn("aryan", usernames)
+        self.assertIn("player01", usernames)
+        self.assertNotIn("player15", usernames)
+
+    def test_insights_crowd_accuracy_handles_tied_crowd_picks(self):
+        match = self.create_match(
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=1,
+        )
+
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["crowd_accuracy_by_stage"]["rows"], [])
+        self.assertEqual(
+            response.context["crowd_accuracy_by_stage"]["split_crowd_matches"],
+            1,
+        )
+        self.assertContains(response, "1 split-crowd match skipped")
 
     def test_match_card_hides_prediction_trends_before_kickoff(self):
         match = self.create_match(kickoff_delta_hours=24)

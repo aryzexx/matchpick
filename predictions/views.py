@@ -1,5 +1,6 @@
 import io
 import re
+from collections import defaultdict
 from datetime import timedelta
 
 from django.contrib import messages
@@ -258,6 +259,27 @@ def get_prediction_trends_for_match(match):
     }
 
 
+def get_clear_top_option_from_trends(trends):
+    if trends["total_predictions"] <= 0:
+        return None, False
+
+    highest_count = max(option["count"] for option in trends["options"])
+
+    if highest_count <= 0:
+        return None, False
+
+    top_options = [
+        option
+        for option in trends["options"]
+        if option["count"] == highest_count
+    ]
+
+    if len(top_options) != 1:
+        return None, True
+
+    return top_options[0], False
+
+
 def build_shared_league_pick_reveal_for_match(match, user_memberships, current_user):
     """
     Builds one clean pick reveal for people who share at least one league with
@@ -412,14 +434,16 @@ def build_prediction_insights():
 
         scoring_result = match.get_scoring_result()
 
-        if scoring_result and trends["top_option"]:
+        top_option, crowd_was_split = get_clear_top_option_from_trends(trends)
+
+        if scoring_result and top_option and not crowd_was_split:
             crowd_item = {
                 "match": match,
-                "top_option": trends["top_option"],
+                "top_option": top_option,
                 "trends": trends,
             }
 
-            if trends["top_option"]["key"] == scoring_result:
+            if top_option["key"] == scoring_result:
                 crowd_right_candidates.append(crowd_item)
             else:
                 crowd_wrong_candidates.append(crowd_item)
@@ -576,6 +600,587 @@ def build_prediction_insights():
         "most_predicted_draw": most_predicted_draw,
         "crowd_right": crowd_right,
         "crowd_wrong": crowd_wrong,
+    }
+
+
+INSIGHTS_CHART_WIDTH = 720
+INSIGHTS_CHART_HEIGHT = 280
+INSIGHTS_CHART_MARGIN = {
+    "top": 24,
+    "right": 24,
+    "bottom": 48,
+    "left": 52,
+}
+INSIGHTS_SERIES_COLORS = [
+    "#16a34a",
+    "#2563eb",
+    "#dc2626",
+    "#9333ea",
+    "#ea580c",
+    "#0891b2",
+    "#4f46e5",
+    "#be123c",
+    "#65a30d",
+    "#0f766e",
+    "#7c3aed",
+    "#c2410c",
+    "#0369a1",
+    "#a21caf",
+    "#334155",
+    "#15803d",
+]
+
+
+def format_snapshot_label(snapshot_date):
+    return snapshot_date.strftime("%d %b").lstrip("0")
+
+
+def get_competition_users():
+    user_ids = GroupMember.objects.values_list("user_id", flat=True).distinct()
+    return list(User.objects.filter(id__in=user_ids).order_by("username"))
+
+
+def select_leaderboard_rows_for_insights(
+    leaderboard_rows,
+    current_user,
+    top_limit,
+    all_user_limit=15,
+):
+    if len(leaderboard_rows) <= all_user_limit:
+        return list(leaderboard_rows)
+
+    selected_rows = list(leaderboard_rows[:top_limit])
+
+    current_row = next(
+        (
+            row
+            for row in leaderboard_rows
+            if current_user.is_authenticated and row["user_id"] == current_user.id
+        ),
+        None,
+    )
+
+    if current_row and all(row["user_id"] != current_row["user_id"] for row in selected_rows):
+        selected_rows.append(current_row)
+
+    return selected_rows
+
+
+def group_scored_matches_by_local_date(scored_matches):
+    dates = []
+    matches_by_date = defaultdict(list)
+
+    for match in scored_matches:
+        match_date = timezone.localdate(match.kickoff_time)
+
+        if match_date not in matches_by_date:
+            dates.append(match_date)
+
+        matches_by_date[match_date].append(match)
+
+    return dates, matches_by_date
+
+
+def build_daily_leaderboard_snapshots(users, current_user, scored_matches):
+    snapshot_dates, matches_by_date = group_scored_matches_by_local_date(scored_matches)
+    cumulative_matches = []
+    snapshots = []
+
+    for snapshot_date in snapshot_dates:
+        cumulative_matches.extend(matches_by_date[snapshot_date])
+        leaderboard_context = build_leaderboard_rows(
+            users=users,
+            current_user=current_user,
+            scoring_matches=list(cumulative_matches),
+            include_movement=False,
+        )
+
+        rows_by_user_id = {
+            row["user_id"]: row
+            for row in leaderboard_context["leaderboard_rows"]
+        }
+
+        snapshots.append(
+            {
+                "date": snapshot_date,
+                "label": format_snapshot_label(snapshot_date),
+                "rows_by_user_id": rows_by_user_id,
+                "scored_match_count": len(cumulative_matches),
+            }
+        )
+
+    return snapshots
+
+
+def scale_chart_point(index, value, point_count, max_value, invert=False):
+    margin = INSIGHTS_CHART_MARGIN
+    chart_width = INSIGHTS_CHART_WIDTH - margin["left"] - margin["right"]
+    chart_height = INSIGHTS_CHART_HEIGHT - margin["top"] - margin["bottom"]
+
+    if point_count <= 1:
+        x = margin["left"] + (chart_width / 2)
+    else:
+        x = margin["left"] + ((chart_width / (point_count - 1)) * index)
+
+    if max_value <= 0:
+        y = margin["top"] + chart_height
+    elif invert:
+        if max_value == 1:
+            y = margin["top"]
+        else:
+            y = margin["top"] + (((value - 1) / (max_value - 1)) * chart_height)
+    else:
+        y = margin["top"] + chart_height - ((value / max_value) * chart_height)
+
+    return round(x, 1), round(y, 1)
+
+
+def scale_chart_y(value, max_value, invert=False):
+    _x, y = scale_chart_point(
+        index=0,
+        value=value,
+        point_count=1,
+        max_value=max_value,
+        invert=invert,
+    )
+    return y
+
+
+def scale_chart_x_for_date(snapshot_date, first_date, last_date):
+    margin = INSIGHTS_CHART_MARGIN
+    chart_width = INSIGHTS_CHART_WIDTH - margin["left"] - margin["right"]
+    total_days = (last_date - first_date).days
+
+    if total_days <= 0:
+        return round(margin["left"] + (chart_width / 2), 1)
+
+    elapsed_days = (snapshot_date - first_date).days
+    return round(margin["left"] + ((elapsed_days / total_days) * chart_width), 1)
+
+
+def count_calendar_tick_labels(total_days, interval_days):
+    tick_count = len(range(0, total_days + 1, interval_days))
+
+    if total_days % interval_days != 0:
+        tick_count += 1
+
+    return tick_count
+
+
+def choose_calendar_tick_interval(total_days):
+    if total_days <= 8:
+        return 1
+
+    interval_options = [2, 3, 5, 7, 10, 14, 21, 30]
+
+    for interval_days in interval_options:
+        tick_count = count_calendar_tick_labels(total_days, interval_days)
+
+        if 5 <= tick_count <= 7:
+            return interval_days
+
+    return min(
+        interval_options,
+        key=lambda interval_days: abs(
+            count_calendar_tick_labels(total_days, interval_days) - 6
+        ),
+    )
+
+
+def build_visible_x_labels(snapshots):
+    if not snapshots:
+        return []
+
+    first_date = snapshots[0]["date"]
+    last_date = snapshots[-1]["date"]
+    total_days = (last_date - first_date).days
+    interval_days = choose_calendar_tick_interval(total_days)
+    tick_offsets = list(range(0, total_days + 1, interval_days))
+
+    if total_days not in tick_offsets:
+        tick_offsets.append(total_days)
+
+    x_labels = []
+
+    for tick_offset in tick_offsets:
+        tick_date = first_date + timedelta(days=tick_offset)
+        x = scale_chart_x_for_date(
+            snapshot_date=tick_date,
+            first_date=first_date,
+            last_date=last_date,
+        )
+        x_labels.append(
+            {
+                "label": format_snapshot_label(tick_date),
+                "x": x,
+                "date": tick_date,
+                "day_offset": tick_offset,
+                "interval_days": interval_days,
+            }
+        )
+
+    return x_labels
+
+
+def unique_values_in_order(values):
+    unique_values = []
+
+    for value in values:
+        if value not in unique_values:
+            unique_values.append(value)
+
+    return unique_values
+
+
+def build_point_y_tick_values(values):
+    maximum = max(values) if values else 0
+
+    if maximum <= 0:
+        return [0]
+
+    if maximum <= 2:
+        return [maximum, 0]
+
+    if maximum <= 12:
+        return unique_values_in_order([maximum, round(maximum / 2), 0])
+
+    return unique_values_in_order(
+        [
+            maximum,
+            round(maximum * 2 / 3),
+            round(maximum / 3),
+            0,
+        ]
+    )
+
+
+def build_rank_y_tick_values(values):
+    rank_values = sorted(set(values))
+
+    if len(rank_values) <= 10:
+        return rank_values
+
+    maximum = max(values) if values else 1
+
+    return unique_values_in_order(
+        [
+            1,
+            round(maximum / 3),
+            round(maximum * 2 / 3),
+            maximum,
+        ]
+    )
+
+
+def build_chart_y_labels(values, max_value, invert=False):
+    if invert:
+        tick_values = build_rank_y_tick_values(values)
+    else:
+        tick_values = build_point_y_tick_values(values)
+
+    return [
+        {
+            "value": value,
+            "label": f"#{value}" if invert else str(value),
+            "y": scale_chart_y(value, max_value=max_value, invert=invert),
+        }
+        for value in tick_values
+    ]
+
+
+def build_svg_line_chart(
+    title,
+    snapshots,
+    selected_rows,
+    value_key,
+    invert=False,
+    empty_message="Chart data will appear after scored fixtures are available.",
+):
+    if not snapshots or not selected_rows:
+        return {
+            "title": title,
+            "is_empty": True,
+            "empty_message": empty_message,
+            "series": [],
+            "x_labels": [],
+            "y_labels": [],
+            "width": INSIGHTS_CHART_WIDTH,
+            "height": INSIGHTS_CHART_HEIGHT,
+            "margin": INSIGHTS_CHART_MARGIN,
+            "point_count": 0,
+        }
+
+    all_values = []
+    row_value_by_user_id = {}
+
+    for selected_row in selected_rows:
+        user_id = selected_row["user_id"]
+        values = [
+            snapshot["rows_by_user_id"][user_id][value_key]
+            for snapshot in snapshots
+            if user_id in snapshot["rows_by_user_id"]
+        ]
+        row_value_by_user_id[user_id] = values
+        all_values.extend(values)
+
+    max_value = max(all_values) if all_values else 0
+
+    if invert:
+        max_value = max(max_value, 1)
+
+    series = []
+    first_snapshot_date = snapshots[0]["date"]
+    last_snapshot_date = snapshots[-1]["date"]
+
+    for color_index, selected_row in enumerate(selected_rows):
+        user_id = selected_row["user_id"]
+        values = row_value_by_user_id.get(user_id, [])
+        points = []
+
+        for snapshot, value in zip(snapshots, values):
+            x = scale_chart_x_for_date(
+                snapshot_date=snapshot["date"],
+                first_date=first_snapshot_date,
+                last_date=last_snapshot_date,
+            )
+            y = scale_chart_y(
+                value=value,
+                max_value=max_value,
+                invert=invert,
+            )
+            points.append(f"{x},{y}")
+
+        value_fragments = []
+
+        for snapshot, value in zip(snapshots, values):
+            if invert:
+                value_fragments.append(f"{snapshot['label']}: #{value}")
+            else:
+                value_fragments.append(f"{snapshot['label']}: {value} points")
+
+        series.append(
+            {
+                "username": selected_row["username"],
+                "is_current_user": selected_row["is_current_user"],
+                "color": INSIGHTS_SERIES_COLORS[
+                    color_index % len(INSIGHTS_SERIES_COLORS)
+                ],
+                "points": " ".join(points),
+                "latest_value": values[-1] if values else 0,
+                "values": values,
+                "title_text": (
+                    f"{selected_row['username']} {title}: "
+                    + "; ".join(value_fragments)
+                ),
+            }
+        )
+
+    return {
+        "title": title,
+        "is_empty": False,
+        "empty_message": empty_message,
+        "series": series,
+        "x_labels": build_visible_x_labels(snapshots),
+        "y_labels": build_chart_y_labels(
+            all_values,
+            max_value=max_value,
+            invert=invert,
+        ),
+        "width": INSIGHTS_CHART_WIDTH,
+        "height": INSIGHTS_CHART_HEIGHT,
+        "margin": INSIGHTS_CHART_MARGIN,
+        "point_count": len(snapshots),
+        "max_value": max_value,
+        "invert": invert,
+    }
+
+
+def build_insights_progression(users, current_user, scored_matches, leaderboard_rows):
+    selected_rows = select_leaderboard_rows_for_insights(
+        leaderboard_rows=leaderboard_rows,
+        current_user=current_user,
+        top_limit=5,
+    )
+    snapshots = build_daily_leaderboard_snapshots(
+        users=users,
+        current_user=current_user,
+        scored_matches=scored_matches,
+    )
+
+    return {
+        "points_chart": build_svg_line_chart(
+            title="Points Progression",
+            snapshots=snapshots,
+            selected_rows=selected_rows,
+            value_key="total_points",
+            empty_message="Points progression will appear after fixtures have scoring results.",
+        ),
+        "rank_chart": build_svg_line_chart(
+            title="Rank Race",
+            snapshots=snapshots,
+            selected_rows=selected_rows,
+            value_key="rank",
+            invert=True,
+            empty_message="Rank race will appear after fixtures have scoring results.",
+        ),
+        "snapshot_count": len(snapshots),
+        "selected_rows": selected_rows,
+    }
+
+
+def build_crowd_accuracy_by_stage(scored_matches):
+    rows_by_stage = {}
+    split_crowd_matches = 0
+
+    for match in scored_matches:
+        crowd_pick, crowd_was_split = get_crowd_pick_for_match(match)
+
+        if crowd_was_split:
+            split_crowd_matches += 1
+            continue
+
+        if crowd_pick is None:
+            continue
+
+        scoring_result = match.get_scoring_result()
+
+        if scoring_result is None:
+            continue
+
+        if match.stage not in rows_by_stage:
+            rows_by_stage[match.stage] = {
+                "stage": match.stage,
+                "stage_label": match.get_stage_display(),
+                "correct_count": 0,
+                "total_count": 0,
+                "accuracy": "0%",
+                "accuracy_value": 0,
+            }
+
+        row = rows_by_stage[match.stage]
+        row["total_count"] += 1
+
+        if crowd_pick == scoring_result:
+            row["correct_count"] += 1
+
+    stage_order = {stage: index for index, (stage, _label) in enumerate(Match.STAGE_CHOICES)}
+    rows = sorted(
+        rows_by_stage.values(),
+        key=lambda row: stage_order.get(row["stage"], 999),
+    )
+
+    for row in rows:
+        row["accuracy"] = format_percentage(
+            row["correct_count"],
+            row["total_count"],
+        )
+        row["accuracy_value"] = percentage(
+            row["correct_count"],
+            row["total_count"],
+        )
+
+    return {
+        "rows": rows,
+        "split_crowd_matches": split_crowd_matches,
+    }
+
+
+def build_recent_form_board(scored_matches, leaderboard_rows, current_user):
+    selected_rows = select_leaderboard_rows_for_insights(
+        leaderboard_rows=leaderboard_rows,
+        current_user=current_user,
+        top_limit=10,
+    )
+    selected_user_ids = [row["user_id"] for row in selected_rows]
+    predictions = (
+        Prediction.objects.filter(
+            user_id__in=selected_user_ids,
+            match_id__in=[match.id for match in scored_matches],
+        )
+        .select_related("match", "user")
+        .order_by("-match__kickoff_time", "-match__id")
+    )
+    predictions_by_user_id = defaultdict(list)
+
+    for prediction in predictions:
+        predictions_by_user_id[prediction.user_id].append(prediction)
+
+    rows = []
+
+    for leaderboard_row in selected_rows:
+        form_items = []
+
+        for prediction in predictions_by_user_id.get(leaderboard_row["user_id"], [])[:5]:
+            scoring_result = prediction.match.get_scoring_result()
+
+            if scoring_result is None:
+                continue
+
+            if prediction.prediction == scoring_result:
+                label = "W"
+                form_class = "is-win"
+            else:
+                label = "L"
+                form_class = "is-loss"
+
+            form_items.append(
+                {
+                    "label": label,
+                    "class": form_class,
+                    "match": prediction.match,
+                }
+            )
+
+        while len(form_items) < 5:
+            form_items.append(
+                {
+                    "label": "-",
+                    "class": "is-neutral",
+                    "match": None,
+                }
+            )
+
+        rows.append(
+            {
+                **leaderboard_row,
+                "form_items": form_items,
+            }
+        )
+
+    return {
+        "rows": rows,
+        "is_empty": not scored_matches,
+    }
+
+
+def build_competition_insights(current_user):
+    users = get_competition_users()
+    scored_matches = get_scored_matches()
+    leaderboard_context = build_leaderboard_rows(
+        users=users,
+        current_user=current_user,
+        scoring_matches=scored_matches,
+    )
+    leaderboard_rows = leaderboard_context["leaderboard_rows"]
+    progression = build_insights_progression(
+        users=users,
+        current_user=current_user,
+        scored_matches=scored_matches,
+        leaderboard_rows=leaderboard_rows,
+    )
+
+    return {
+        "insights_points_chart": progression["points_chart"],
+        "insights_rank_chart": progression["rank_chart"],
+        "insights_timeline_snapshot_count": progression["snapshot_count"],
+        "insights_selected_player_count": len(progression["selected_rows"]),
+        "insights_scored_match_count": len(scored_matches),
+        "crowd_accuracy_by_stage": build_crowd_accuracy_by_stage(scored_matches),
+        "recent_form_board": build_recent_form_board(
+            scored_matches=scored_matches,
+            leaderboard_rows=leaderboard_rows,
+            current_user=current_user,
+        ),
     }
 
 
@@ -1070,23 +1675,12 @@ def build_stage_accuracy(predictions):
 
 def get_crowd_pick_for_match(match):
     trends = get_prediction_trends_for_match(match)
+    top_option, crowd_was_split = get_clear_top_option_from_trends(trends)
 
-    if trends["total_predictions"] <= 0:
-        return None, False
+    if top_option is None:
+        return None, crowd_was_split
 
-    highest_count = max(option["count"] for option in trends["options"])
-
-    if highest_count <= 0:
-        return None, False
-
-    top_options = [
-        option for option in trends["options"] if option["count"] == highest_count
-    ]
-
-    if len(top_options) != 1:
-        return None, True
-
-    return top_options[0]["key"], False
+    return top_option["key"], False
 
 
 def build_user_vs_crowd(predictions):
@@ -2048,11 +2642,13 @@ def global_leaderboard(request):
 def insights(request):
     user_memberships = get_user_memberships(request.user)
     insight_context = build_prediction_insights()
+    competition_insight_context = build_competition_insights(request.user)
 
     context = {
         "user_memberships": user_memberships,
         "primary_membership": user_memberships.first(),
         **insight_context,
+        **competition_insight_context,
     }
 
     return render(request, "predictions/insights.html", context)

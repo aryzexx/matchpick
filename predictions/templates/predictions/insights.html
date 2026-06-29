@@ -46,6 +46,222 @@
         <p>Locked Matches With Picks: {{ trend_match_count }}</p>
         <p>Locked Picks: {{ total_locked_predictions }}</p>
         <p>Insight Rule: After lock only</p>
+        <p>Daily Timeline Snapshots: {{ insights_timeline_snapshot_count }}</p>
+    </section>
+
+    <section class="insights-analytics-grid" aria-label="Competition progression charts">
+        <article class="leaderboard-table-card insights-chart-card">
+            <div class="section-title-row insights-chart-heading">
+                <div>
+                    <p class="eyebrow">Daily snapshots</p>
+
+                    <h2>Points Progression</h2>
+                </div>
+
+                <span class="leaderboard-scope-pill dark-text">
+                    {{ insights_selected_player_count }} player{{ insights_selected_player_count|pluralize }}
+                </span>
+            </div>
+
+            {% if insights_points_chart.is_empty %}
+                <p class="dashboard-empty-state">
+                    {{ insights_points_chart.empty_message }}
+                </p>
+            {% else %}
+                <div class="insights-chart-wrap">
+                    <svg
+                        class="insights-line-chart"
+                        viewBox="0 0 {{ insights_points_chart.width }} {{ insights_points_chart.height }}"
+                        role="img"
+                        aria-label="Points Progression by scored fixture date"
+                        data-point-count="{{ insights_points_chart.point_count }}"
+                    >
+                        <title>Points Progression based on scored fixture dates</title>
+                        <line class="insights-chart-axis" x1="52" y1="232" x2="696" y2="232"></line>
+                        <line class="insights-chart-axis" x1="52" y1="24" x2="52" y2="232"></line>
+
+                        {% for label in insights_points_chart.y_labels %}
+                            <line class="insights-chart-horizontal-gridline" x1="52" y1="{{ label.y }}" x2="696" y2="{{ label.y }}"></line>
+                            <text class="insights-chart-y-label" x="42" y="{{ label.y }}">{{ label.label }}</text>
+                        {% endfor %}
+
+                        {% for label in insights_points_chart.x_labels %}
+                            <line class="insights-chart-gridline" x1="{{ label.x }}" y1="24" x2="{{ label.x }}" y2="232"></line>
+                            <text class="insights-chart-label" x="{{ label.x }}" y="258">{{ label.label }}</text>
+                        {% endfor %}
+
+                        {% for series in insights_points_chart.series %}
+                            <polyline
+                                class="insights-chart-line{% if series.is_current_user %} is-current-user{% endif %}"
+                                points="{{ series.points }}"
+                                stroke="{{ series.color }}"
+                            >
+                                <title>{{ series.title_text }}</title>
+                            </polyline>
+                        {% endfor %}
+                    </svg>
+                </div>
+
+                <div class="insights-chart-legend">
+                    {% for series in insights_points_chart.series %}
+                        <span{% if series.is_current_user %} class="is-current-user"{% endif %}>
+                            <i style="--series-color: {{ series.color }};"></i>
+                            {{ series.username }} · {{ series.latest_value }} pts
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </article>
+
+        <article class="leaderboard-table-card insights-chart-card">
+            <div class="section-title-row insights-chart-heading">
+                <div>
+                    <p class="eyebrow">Daily snapshots</p>
+
+                    <h2>Rank Race</h2>
+                </div>
+
+                <span class="leaderboard-scope-pill dark-text">Rank 1 at top</span>
+            </div>
+
+            {% if insights_rank_chart.is_empty %}
+                <p class="dashboard-empty-state">
+                    {{ insights_rank_chart.empty_message }}
+                </p>
+            {% else %}
+                <div class="insights-chart-wrap">
+                    <svg
+                        class="insights-line-chart insights-rank-chart"
+                        viewBox="0 0 {{ insights_rank_chart.width }} {{ insights_rank_chart.height }}"
+                        role="img"
+                        aria-label="Rank Race by scored fixture date"
+                        data-point-count="{{ insights_rank_chart.point_count }}"
+                    >
+                        <title>Rank Race based on scored fixture dates</title>
+                        <line class="insights-chart-axis" x1="52" y1="232" x2="696" y2="232"></line>
+                        <line class="insights-chart-axis" x1="52" y1="24" x2="52" y2="232"></line>
+
+                        {% for label in insights_rank_chart.y_labels %}
+                            <line class="insights-chart-horizontal-gridline" x1="52" y1="{{ label.y }}" x2="696" y2="{{ label.y }}"></line>
+                            <text class="insights-chart-y-label" x="42" y="{{ label.y }}">{{ label.label }}</text>
+                        {% endfor %}
+
+                        {% for label in insights_rank_chart.x_labels %}
+                            <line class="insights-chart-gridline" x1="{{ label.x }}" y1="24" x2="{{ label.x }}" y2="232"></line>
+                            <text class="insights-chart-label" x="{{ label.x }}" y="258">{{ label.label }}</text>
+                        {% endfor %}
+
+                        {% for series in insights_rank_chart.series %}
+                            <polyline
+                                class="insights-chart-line{% if series.is_current_user %} is-current-user{% endif %}"
+                                points="{{ series.points }}"
+                                stroke="{{ series.color }}"
+                            >
+                                <title>{{ series.title_text }}</title>
+                            </polyline>
+                        {% endfor %}
+                    </svg>
+                </div>
+
+                <div class="insights-chart-legend">
+                    {% for series in insights_rank_chart.series %}
+                        <span{% if series.is_current_user %} class="is-current-user"{% endif %}>
+                            <i style="--series-color: {{ series.color }};"></i>
+                            {{ series.username }} · #{{ series.latest_value }}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </article>
+    </section>
+
+    <section class="leaderboard-table-card insights-stage-card">
+        <div class="section-title-row">
+            <div>
+                <p class="eyebrow">Crowd Accuracy by Stage</p>
+
+                <h2>How often the crowd has called it</h2>
+            </div>
+
+            <span class="leaderboard-scope-pill dark-text">
+                Scored fixtures only
+            </span>
+        </div>
+
+        <div class="dashboard-bar-list insights-stage-bars">
+            {% for row in crowd_accuracy_by_stage.rows %}
+                <div class="dashboard-bar-row">
+                    <div class="dashboard-bar-row-top">
+                        <strong>{{ row.stage_label }}</strong>
+                        <span>{{ row.correct_count }}/{{ row.total_count }} correct · {{ row.accuracy }}</span>
+                    </div>
+
+                    <div class="dashboard-bar-track">
+                        <div class="dashboard-bar-fill" style="--bar-width: {{ row.accuracy_value }}%;"></div>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="dashboard-empty-state">
+                    Crowd accuracy will appear after scored fixtures have a clear crowd pick.
+                </p>
+            {% endfor %}
+        </div>
+
+        {% if crowd_accuracy_by_stage.split_crowd_matches > 0 %}
+            <p class="my-picks-readonly-note insights-split-note">
+                {{ crowd_accuracy_by_stage.split_crowd_matches }} split-crowd match{{ crowd_accuracy_by_stage.split_crowd_matches|pluralize:"es" }} skipped.
+            </p>
+        {% endif %}
+    </section>
+
+    <section class="leaderboard-table-card insights-form-board">
+        <div class="section-title-row">
+            <div>
+                <p class="eyebrow">Recent Form Board</p>
+
+                <h2>Last 5 scored predictions</h2>
+            </div>
+
+            <span class="leaderboard-scope-pill dark-text">W / L / &ndash;</span>
+        </div>
+
+        {% if recent_form_board.is_empty %}
+            <p class="dashboard-empty-state">
+                Recent form will appear after scored predictions are available.
+            </p>
+        {% else %}
+            <div class="table-scroll">
+                <table class="leaderboard-v2-table insights-form-table">
+                    <thead>
+                        <tr>
+                            <th>Player</th>
+                            <th>Rank</th>
+                            <th>Points</th>
+                            <th>Recent form</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in recent_form_board.rows %}
+                            <tr{% if row.is_current_user %} class="is-current-user"{% endif %}>
+                                <td>{{ row.username }}</td>
+                                <td>#{{ row.rank }}</td>
+                                <td>{{ row.total_points }}</td>
+                                <td>
+                                    <div class="my-picks-form-strip">
+                                        {% for item in row.form_items %}
+                                            <span class="my-picks-form-dot {{ item.class }}">
+                                                {{ item.label }}
+                                            </span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
     </section>
 
     <section class="insights-v2-feature-grid">
