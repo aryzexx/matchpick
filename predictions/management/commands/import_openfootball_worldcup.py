@@ -6,7 +6,13 @@ from urllib.request import urlopen
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone as django_timezone
 
-from predictions.models import Match
+from predictions.models import (
+    BONUS_OPTION_BEYOND_90,
+    BONUS_OPTION_DECIDED_90,
+    BONUS_QUESTION_DECISION_TIMING,
+    BonusResult,
+    Match,
+)
 
 
 OPENFOOTBALL_WORLD_CUP_2026_URL = (
@@ -91,10 +97,12 @@ class Command(BaseCommand):
                     setattr(existing_match, field_name, field_value)
 
                 existing_match.save()
+                self.update_bonus_results(existing_match, source_match)
                 self.recalculate_predictions(existing_match)
                 updated_count += 1
             else:
                 new_match = Match.objects.create(**parsed_match)
+                self.update_bonus_results(new_match, source_match)
                 self.recalculate_predictions(new_match)
                 created_count += 1
 
@@ -226,6 +234,52 @@ class Command(BaseCommand):
 
         return None
 
+    def score_pair_has_values(self, score_pair):
+        return (
+            isinstance(score_pair, list)
+            and len(score_pair) == 2
+            and score_pair[0] is not None
+            and score_pair[1] is not None
+        )
+
+    def get_bonus_decision_timing_result(self, match, source_match):
+        if not match.supports_bonus_timing_prediction:
+            return None
+
+        if match.status != Match.STATUS_FINISHED:
+            return None
+
+        score_data = source_match.get("score", {})
+
+        if not isinstance(score_data, dict):
+            return None
+
+        if self.score_pair_has_values(score_data.get("et")):
+            return BONUS_OPTION_BEYOND_90
+
+        if self.score_pair_has_values(score_data.get("p")):
+            return BONUS_OPTION_BEYOND_90
+
+        if self.score_pair_has_values(score_data.get("ft")):
+            return BONUS_OPTION_DECIDED_90
+
+        return None
+
+    def update_bonus_results(self, match, source_match):
+        correct_option = self.get_bonus_decision_timing_result(match, source_match)
+
+        if correct_option is None:
+            return
+
+        BonusResult.objects.update_or_create(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            defaults={
+                "correct_option": correct_option,
+                "source": "openfootball",
+            },
+        )
+
     def parse_kickoff_time(self, match_date, match_time):
         """
         Parses OpenFootball date/time into a timezone-aware datetime.
@@ -339,3 +393,7 @@ class Command(BaseCommand):
         for prediction in match.predictions.all():
             prediction.points_awarded = prediction.calculate_points()
             prediction.save()
+
+        for bonus_prediction in match.bonus_predictions.all():
+            bonus_prediction.points_awarded = bonus_prediction.calculate_points()
+            bonus_prediction.save()

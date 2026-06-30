@@ -18,7 +18,7 @@
         <div class="background-grid"></div>
     </div>
 
-    <header class="site-header">
+    <header class="site-header" data-mobile-header>
         <nav class="navbar">
             <a class="brand" href="{% url 'home' %}">
                 <span class="brand-mark">MP</span>
@@ -29,7 +29,17 @@
                 </span>
             </a>
 
-            <div class="nav-links">
+            <button
+                class="mobile-nav-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="primary-navigation"
+                data-mobile-nav-toggle
+            >
+                Menu
+            </button>
+
+            <div class="nav-links" id="primary-navigation" data-mobile-nav>
                 {% if user.is_authenticated %}
                     <a href="{% url 'matches' %}" class="{% if request.resolver_match.url_name == 'matches' %}active{% endif %}">
                         Matches
@@ -108,5 +118,70 @@
             MatchPick — Private football prediction leagues.
         </p>
     </footer>
+    <script>
+        (function () {
+            const mobileQuery = window.matchMedia("(max-width: 720px)");
+            const header = document.querySelector("[data-mobile-header]");
+            const toggle = document.querySelector("[data-mobile-nav-toggle]");
+
+            if (!header || !toggle) {
+                return;
+            }
+
+            let lastScrollY = window.scrollY;
+            let ticking = false;
+
+            function setMenuOpen(isOpen) {
+                header.classList.toggle("is-menu-open", isOpen);
+                toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+            }
+
+            function resetMobileHeader() {
+                header.classList.remove("is-compact", "is-menu-open");
+                toggle.setAttribute("aria-expanded", "false");
+            }
+
+            function updateCompactState() {
+                ticking = false;
+
+                if (!mobileQuery.matches) {
+                    resetMobileHeader();
+                    lastScrollY = window.scrollY;
+                    return;
+                }
+
+                const currentScrollY = window.scrollY;
+                const nearTop = currentScrollY < 48;
+                const scrollingDown = currentScrollY > lastScrollY + 8;
+                const scrollingUp = currentScrollY < lastScrollY - 8;
+
+                if (nearTop || scrollingUp) {
+                    header.classList.remove("is-compact");
+                } else if (scrollingDown && currentScrollY > 80) {
+                    header.classList.add("is-compact");
+                }
+
+                lastScrollY = currentScrollY;
+            }
+
+            function requestCompactUpdate() {
+                if (!ticking) {
+                    window.requestAnimationFrame(updateCompactState);
+                    ticking = true;
+                }
+            }
+
+            toggle.addEventListener("click", function () {
+                if (!mobileQuery.matches) {
+                    return;
+                }
+
+                setMenuOpen(!header.classList.contains("is-menu-open"));
+            });
+
+            window.addEventListener("scroll", requestCompactUpdate, { passive: true });
+            mobileQuery.addEventListener("change", resetMobileHeader);
+        })();
+    </script>
 </body>
 </html>

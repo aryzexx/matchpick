@@ -4,6 +4,20 @@ from django.conf import settings
 from django.db import models
 
 
+BONUS_QUESTION_DECISION_TIMING = "decision_timing"
+BONUS_OPTION_DECIDED_90 = "decided_90"
+BONUS_OPTION_BEYOND_90 = "beyond_90"
+
+BONUS_QUESTION_CHOICES = [
+    (BONUS_QUESTION_DECISION_TIMING, "Decision timing"),
+]
+
+BONUS_DECISION_TIMING_CHOICES = [
+    (BONUS_OPTION_DECIDED_90, "Decided in 90 minutes"),
+    (BONUS_OPTION_BEYOND_90, "Beyond 90 minutes"),
+]
+
+
 TEAM_FLAG_MAP = {
     "algeria": "🇩🇿",
     "argentina": "🇦🇷",
@@ -360,6 +374,16 @@ class Match(models.Model):
     def allows_draw_prediction(self):
         return not self.is_knockout
 
+    @property
+    def supports_bonus_timing_prediction(self):
+        return self.stage in {
+            self.STAGE_ROUND_OF_16,
+            self.STAGE_QUARTER_FINAL,
+            self.STAGE_SEMI_FINAL,
+            self.STAGE_THIRD_PLACE,
+            self.STAGE_FINAL,
+        }
+
     def get_scoring_result(self):
         if self.is_knockout:
             if self.qualified_team in {
@@ -564,3 +588,114 @@ class Prediction(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.match} - {self.prediction}"
+
+
+class BonusResult(models.Model):
+    """
+    Stores the scored answer for one bonus question on a match.
+    """
+
+    match = models.ForeignKey(
+        Match,
+        on_delete=models.CASCADE,
+        related_name="bonus_results",
+    )
+    question_key = models.CharField(
+        max_length=50,
+        choices=BONUS_QUESTION_CHOICES,
+    )
+    correct_option = models.CharField(
+        max_length=50,
+        choices=BONUS_DECISION_TIMING_CHOICES,
+    )
+    source = models.CharField(max_length=50, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["match", "question_key"],
+                name="unique_bonus_result_per_match_question",
+            )
+        ]
+        ordering = ["match__kickoff_time", "question_key"]
+
+    @property
+    def option_display(self):
+        return dict(BONUS_DECISION_TIMING_CHOICES).get(
+            self.correct_option,
+            self.correct_option,
+        )
+
+    def __str__(self):
+        return f"{self.match} - {self.question_key}: {self.correct_option}"
+
+
+class BonusPrediction(models.Model):
+    """
+    Stores one user's answer to one bonus question for one match.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bonus_predictions",
+    )
+    match = models.ForeignKey(
+        Match,
+        on_delete=models.CASCADE,
+        related_name="bonus_predictions",
+    )
+    question_key = models.CharField(
+        max_length=50,
+        choices=BONUS_QUESTION_CHOICES,
+    )
+    selected_option = models.CharField(
+        max_length=50,
+        choices=BONUS_DECISION_TIMING_CHOICES,
+    )
+    points_awarded = models.PositiveIntegerField(default=0)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "match", "question_key"],
+                name="unique_bonus_prediction_per_user_match_question",
+            )
+        ]
+        ordering = ["-submitted_at"]
+
+    def calculate_points(self):
+        bonus_result = BonusResult.objects.filter(
+            match=self.match,
+            question_key=self.question_key,
+        ).first()
+
+        if bonus_result is None:
+            return 0
+
+        if self.selected_option == bonus_result.correct_option:
+            return 1
+
+        return 0
+
+    @property
+    def option_display(self):
+        return dict(BONUS_DECISION_TIMING_CHOICES).get(
+            self.selected_option,
+            self.selected_option,
+        )
+
+    def save(self, *args, **kwargs):
+        self.points_awarded = self.calculate_points()
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return (
+            f"{self.user.username} - {self.match} - "
+            f"{self.question_key}: {self.selected_option}"
+        )

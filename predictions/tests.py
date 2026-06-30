@@ -12,7 +12,17 @@ from .data.fifa_rankings_snapshot import get_team_ranking, is_placeholder_team_n
 from .management.commands.import_openfootball_worldcup import (
     Command as ImportOpenFootballWorldCupCommand,
 )
-from .models import CompetitionGroup, GroupMember, Match, Prediction
+from .models import (
+    BONUS_OPTION_BEYOND_90,
+    BONUS_OPTION_DECIDED_90,
+    BONUS_QUESTION_DECISION_TIMING,
+    BonusPrediction,
+    BonusResult,
+    CompetitionGroup,
+    GroupMember,
+    Match,
+    Prediction,
+)
 from .views import build_pick_style, build_user_vs_crowd
 
 
@@ -503,6 +513,11 @@ class MatchPickUpdateThreeTests(TestCase):
 
     def test_matches_page_renders_collapse_controls(self):
         self.create_match(kickoff_delta_hours=24)
+        self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=72,
+        )
 
         self.login_as_aryan()
 
@@ -511,7 +526,9 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "matches-v2-card is-collapsed")
         self.assertContains(response, "matches-v2-collapse-toggle")
-        self.assertContains(response, "Expand Argentina vs Brazil")
+        self.assertContains(response, "Expand France vs Germany")
+        self.assertContains(response, "data-prediction-modal-target")
+        self.assertContains(response, "Predict")
 
     def test_matches_page_defaults_to_open_filter_without_all_tab(self):
         self.create_match(kickoff_delta_hours=24)
@@ -823,16 +840,20 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("matches"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Your prediction")
+        self.assertContains(response, "prediction-wizard-title")
+        self.assertContains(response, "REDICTION")
+        self.assertContains(response, "IZARD")
+        self.assertContains(response, "Who will win?")
         self.assertContains(response, 'value="draw"')
         self.assertContains(response, "Draw")
+        self.assertContains(response, "Predict")
 
-    def test_knockout_match_hides_draw_prediction_button(self):
+    def test_round_of_32_match_uses_simple_qualifier_modal_without_bonus(self):
         self.create_match(
             home_team="France",
             away_team="Germany",
             kickoff_delta_hours=24,
-            stage=Match.STAGE_ROUND_OF_16,
+            stage=Match.STAGE_ROUND_OF_32,
         )
 
         self.login_as_aryan()
@@ -840,20 +861,21 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("matches"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Who qualifies?")
-        self.assertContains(response, "Selection pending")
+        self.assertContains(response, "Which team will progress to the next round?")
+        self.assertContains(response, "1 of 1")
         self.assertContains(response, "France")
         self.assertContains(response, "Germany")
         self.assertNotContains(response, "France qualifies")
         self.assertNotContains(response, "Germany qualifies")
         self.assertNotContains(response, 'value="draw"')
+        self.assertNotContains(response, "Will the match be decided in 90 minutes or go beyond 90?")
 
-    def test_knockout_match_shows_selected_team_in_question_line(self):
+    def test_saved_open_match_row_shows_compact_saved_state(self):
         match = self.create_match(
             home_team="France",
             away_team="Germany",
             kickoff_delta_hours=24,
-            stage=Match.STAGE_ROUND_OF_16,
+            stage=Match.STAGE_ROUND_OF_32,
         )
 
         Prediction.objects.create(
@@ -867,10 +889,8 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("matches"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            "You predicted: Germany to qualify for the next round",
-        )
+        self.assertContains(response, "&#10003; Saved")
+        self.assertContains(response, 'data-prediction-complete="true"')
         self.assertNotContains(response, "Current pick:")
 
     def test_knockout_match_rejects_draw_prediction(self):
@@ -924,6 +944,240 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         prediction = Prediction.objects.get(user=self.aryan, match=match)
         self.assertEqual(prediction.prediction, Prediction.PREDICTION_AWAY)
+
+    def test_bonus_models_store_one_timing_answer_per_user_and_match(self):
+        match = self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=-2,
+            stage=Match.STAGE_ROUND_OF_16,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=0,
+            qualified_team=Match.RESULT_HOME,
+        )
+        BonusResult.objects.create(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            correct_option=BONUS_OPTION_DECIDED_90,
+        )
+        bonus_prediction = BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_DECIDED_90,
+        )
+
+        self.assertEqual(bonus_prediction.points_awarded, 1)
+        self.assertEqual(bonus_prediction.option_display, "Decided in 90 minutes")
+
+    def test_bonus_question_appears_only_from_round_of_16_onwards(self):
+        self.create_match(
+            home_team="Argentina",
+            away_team="Brazil",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_GROUP,
+        )
+        self.create_match(
+            home_team="France",
+            away_team="Germany",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_32,
+        )
+        self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Will the match be decided in 90 minutes or go beyond 90?", count=1)
+        self.assertContains(response, "Decided in 90 minutes")
+        self.assertContains(response, "Beyond 90 minutes")
+        self.assertContains(response, "Who will win?")
+        self.assertContains(response, "Which team will progress to the next round?")
+        self.assertContains(response, "1 of 2")
+        self.assertContains(response, "2 of 2")
+
+    def test_user_can_save_qualifier_and_bonus_timing_for_eligible_match(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_AWAY,
+                "bonus_decision_timing": BONUS_OPTION_BEYOND_90,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Prediction.objects.get(user=self.aryan, match=match).prediction,
+            Prediction.PREDICTION_AWAY,
+        )
+        self.assertEqual(
+            BonusPrediction.objects.get(
+                user=self.aryan,
+                match=match,
+                question_key=BONUS_QUESTION_DECISION_TIMING,
+            ).selected_option,
+            BONUS_OPTION_BEYOND_90,
+        )
+
+    def test_completed_eligible_match_opens_review_state_when_revisited(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_DECIDED_90,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Review Your Picks")
+        self.assertContains(response, "Edit Qualifier")
+        self.assertContains(response, "Edit Decision Timing")
+        self.assertContains(response, 'data-initial-complete="true"')
+        self.assertContains(response, 'name="prediction" value="home"')
+        self.assertContains(response, 'name="bonus_decision_timing" value="decided_90"')
+
+    def test_user_can_edit_qualifier_without_deleting_bonus_timing(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_DECIDED_90,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_AWAY,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Prediction.objects.get(user=self.aryan, match=match).prediction,
+            Prediction.PREDICTION_AWAY,
+        )
+        self.assertEqual(
+            BonusPrediction.objects.get(user=self.aryan, match=match).selected_option,
+            BONUS_OPTION_DECIDED_90,
+        )
+
+    def test_user_can_edit_bonus_timing_without_changing_qualifier(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_DECIDED_90,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.post(
+            reverse("submit_prediction", args=[match.id]),
+            {
+                "prediction": Prediction.PREDICTION_HOME,
+                "bonus_decision_timing": BONUS_OPTION_BEYOND_90,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Prediction.objects.get(user=self.aryan, match=match).prediction,
+            Prediction.PREDICTION_HOME,
+        )
+        self.assertEqual(
+            BonusPrediction.objects.get(user=self.aryan, match=match).selected_option,
+            BONUS_OPTION_BEYOND_90,
+        )
+
+    def test_locked_eligible_match_shows_bonus_pick_read_only(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=-2,
+            stage=Match.STAGE_ROUND_OF_16,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            qualified_team=Match.RESULT_HOME,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_BEYOND_90,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("matches"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Decision Timing:")
+        self.assertContains(response, "Beyond 90 minutes")
+        self.assertNotContains(response, "Save Picks")
 
     def test_knockout_prediction_scores_against_qualified_team(self):
         match = self.create_match(
@@ -999,6 +1253,87 @@ class MatchPickUpdateThreeTests(TestCase):
 
         self.assertEqual(match.get_scoring_result(), Match.RESULT_HOME)
         self.assertEqual(prediction.points_awarded, 3)
+
+    def test_bonus_timing_scoring_does_not_change_main_prediction_points(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=-2,
+            stage=Match.STAGE_ROUND_OF_16,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            qualified_team=Match.RESULT_AWAY,
+        )
+        BonusResult.objects.create(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            correct_option=BONUS_OPTION_BEYOND_90,
+        )
+        main_prediction = Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        correct_bonus = BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_BEYOND_90,
+        )
+        wrong_bonus = BonusPrediction.objects.create(
+            user=self.friend,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_DECIDED_90,
+        )
+
+        self.assertEqual(main_prediction.points_awarded, 3)
+        self.assertEqual(correct_bonus.points_awarded, 1)
+        self.assertEqual(wrong_bonus.points_awarded, 0)
+
+    def test_leaderboard_total_points_include_bonus_points_but_accuracy_stays_main_based(self):
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=-2,
+            stage=Match.STAGE_ROUND_OF_16,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            qualified_team=Match.RESULT_HOME,
+        )
+        BonusResult.objects.create(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            correct_option=BONUS_OPTION_BEYOND_90,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_BEYOND_90,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        aryan_row = next(
+            row
+            for row in response.context["leaderboard_rows"]
+            if row["username"] == "aryan"
+        )
+        self.assertEqual(aryan_row["total_points"], 4)
+        self.assertEqual(aryan_row["correct_predictions"], 1)
+        self.assertEqual(aryan_row["incorrect_predictions"], 0)
+        self.assertEqual(aryan_row["accuracy"], 100.0)
 
     def test_openfootball_import_sets_knockout_qualified_team_from_decisive_score(self):
         command = ImportOpenFootballWorldCupCommand()
@@ -1110,6 +1445,138 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertEqual(match.get_scoring_result(), Match.RESULT_AWAY)
         self.assertEqual(correct_prediction.points_awarded, 3)
         self.assertEqual(incorrect_prediction.points_awarded, 0)
+
+    def test_openfootball_import_derives_bonus_timing_from_extra_time(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Morocco",
+            team2="Spain",
+            round_name="Round of 16",
+            score={
+                "ft": [1, 1],
+                "et": [2, 1],
+            },
+        )
+        parsed_match = command.parse_source_match(source_match, 1)
+        match = Match.objects.create(**parsed_match)
+
+        command.update_bonus_results(match, source_match)
+
+        bonus_result = BonusResult.objects.get(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+        )
+        self.assertEqual(bonus_result.correct_option, BONUS_OPTION_BEYOND_90)
+
+    def test_openfootball_import_derives_bonus_timing_from_penalties(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Netherlands",
+            team2="Morocco",
+            round_name="Round of 16",
+            score={
+                "ft": [1, 1],
+                "p": [3, 4],
+            },
+        )
+        parsed_match = command.parse_source_match(source_match, 1)
+        match = Match.objects.create(**parsed_match)
+
+        command.update_bonus_results(match, source_match)
+
+        bonus_result = BonusResult.objects.get(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+        )
+        self.assertEqual(bonus_result.correct_option, BONUS_OPTION_BEYOND_90)
+
+    def test_openfootball_import_derives_bonus_timing_from_full_time_only(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Portugal",
+            team2="Uruguay",
+            round_name="Round of 16",
+            score={
+                "ft": [2, 0],
+            },
+        )
+        parsed_match = command.parse_source_match(source_match, 1)
+        match = Match.objects.create(**parsed_match)
+
+        command.update_bonus_results(match, source_match)
+
+        bonus_result = BonusResult.objects.get(
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+        )
+        self.assertEqual(bonus_result.correct_option, BONUS_OPTION_DECIDED_90)
+
+    def test_openfootball_import_leaves_unknown_bonus_timing_unscored(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Portugal",
+            team2="Uruguay",
+            round_name="Round of 16",
+        )
+        source_match["score"] = {}
+        match = self.create_match(
+            home_team="Portugal",
+            away_team="Uruguay",
+            kickoff_delta_hours=-2,
+            stage=Match.STAGE_ROUND_OF_16,
+            status=Match.STATUS_FINISHED,
+            home_score=2,
+            away_score=0,
+            qualified_team=Match.RESULT_HOME,
+        )
+
+        command.update_bonus_results(match, source_match)
+
+        self.assertFalse(
+            BonusResult.objects.filter(
+                match=match,
+                question_key=BONUS_QUESTION_DECISION_TIMING,
+            ).exists()
+        )
+
+    def test_openfootball_import_recalculates_bonus_prediction_points(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Morocco",
+            team2="Spain",
+            round_name="Round of 16",
+            score={
+                "ft": [1, 1],
+                "p": [4, 3],
+            },
+        )
+        match = self.create_match(
+            home_team="Morocco",
+            away_team="Spain",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+        match.external_source = "openfootball"
+        match.external_match_id = command.build_external_match_id(source_match, 1)
+        match.save()
+        bonus_prediction = BonusPrediction.objects.create(
+            user=self.aryan,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_BEYOND_90,
+        )
+
+        self.assertEqual(bonus_prediction.points_awarded, 0)
+
+        with patch.object(command, "fetch_json", return_value={"matches": [source_match]}):
+            command.handle(url="test://openfootball", limit=None, dry_run=False)
+
+        bonus_prediction.refresh_from_db()
+
+        self.assertEqual(bonus_prediction.points_awarded, 1)
 
     def test_openfootball_import_preserves_group_stage_draw_result(self):
         command = ImportOpenFootballWorldCupCommand()
@@ -1476,6 +1943,49 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(response, "France")
         self.assertNotContains(response, "Canada")
         self.assertNotContains(response, "<span>Open picks</span>", html=False)
+
+    def test_public_and_compare_views_do_not_expose_open_bonus_picks(self):
+        open_match = self.create_match(
+            home_team="Canada",
+            away_team="Mexico",
+            kickoff_delta_hours=24,
+            stage=Match.STAGE_ROUND_OF_16,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=open_match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        BonusPrediction.objects.create(
+            user=self.friend,
+            match=open_match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_BEYOND_90,
+        )
+        Prediction.objects.create(
+            user=self.aryan,
+            match=open_match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        BonusPrediction.objects.create(
+            user=self.aryan,
+            match=open_match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            selected_option=BONUS_OPTION_DECIDED_90,
+        )
+
+        self.login_as_aryan()
+
+        public_response = self.client.get(reverse("user_picks", args=[self.friend.id]))
+        compare_response = self.client.get(
+            f"{reverse('my_picks')}?tab=compare&compare_user_id={self.friend.id}"
+        )
+
+        self.assertEqual(public_response.status_code, 200)
+        self.assertEqual(compare_response.status_code, 200)
+        self.assertNotContains(public_response, "Beyond 90 minutes")
+        self.assertNotContains(compare_response, "Beyond 90 minutes")
+        self.assertNotContains(compare_response, "Decided in 90 minutes")
 
     def test_compare_picks_does_not_expose_active_open_picks(self):
         open_match = self.create_match(
@@ -2283,9 +2793,12 @@ class MatchPickUpdateThreeTests(TestCase):
         response = self.client.get(reverse("matches"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Argentina win")
+        self.assertContains(response, "Who will win?")
+        self.assertContains(response, "Review Your Picks")
+        self.assertContains(response, "Edit Match Result")
+        self.assertContains(response, "Argentina")
         self.assertContains(response, "Draw")
-        self.assertContains(response, "Brazil win")
+        self.assertContains(response, "Brazil")
         self.assertNotContains(
             response,
             "Prediction trends will appear after voting closes for this match.",

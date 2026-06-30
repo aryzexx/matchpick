@@ -197,11 +197,13 @@
             <div class="matches-v2-card-list" id="fixture-card-list">
                 {% for match in matches %}
                     <article
-                        class="matches-v2-card is-collapsed"
+                        class="matches-v2-card is-collapsed {% if match.voting_is_open and user_memberships %}matches-v2-card-open-entry{% endif %}"
                         id="match-{{ match.id }}"
                         data-match-card="true"
+                        {% if match.voting_is_open and user_memberships %}data-prediction-modal-target="prediction-wizard-modal-{{ match.id }}" tabindex="0" role="button" aria-label="Open prediction wizard for {{ match.display_name_plain }}"{% endif %}
                         data-open="{% if match.voting_is_open %}true{% else %}false{% endif %}"
-                        data-pending="{% if match.voting_is_open and not match.user_prediction %}true{% else %}false{% endif %}"
+                        data-pending="{% if match.voting_is_open and not match.prediction_entry_complete %}true{% else %}false{% endif %}"
+                        data-prediction-complete="{% if match.prediction_entry_complete %}true{% else %}false{% endif %}"
                         data-closing="{% if match.is_closing_soon %}true{% else %}false{% endif %}"
                         data-finished="{% if match.status == 'finished' %}true{% else %}false{% endif %}"
                         data-upcoming="{% if match.status == 'scheduled' and not match.voting_is_open %}true{% else %}false{% endif %}"
@@ -274,15 +276,27 @@
                                 {% endif %}
                             </div>
 
-                            <button
-                                class="matches-v2-collapse-toggle"
-                                type="button"
-                                aria-expanded="false"
-                                aria-label="Expand {{ match.display_name_plain }}"
-                            >
-                                <span aria-hidden="true">v</span>
-                                <span class="matches-v2-collapse-text">Expand</span>
-                            </button>
+                            {% if match.voting_is_open and user_memberships %}
+                                <div class="matches-v2-row-action">
+                                    <span class="matches-v2-predict-pill js-predict-pill {% if match.prediction_entry_complete %}is-hidden{% endif %}">
+                                        Predict
+                                    </span>
+
+                                    <span class="matches-v2-saved-pill js-saved-pill {% if not match.prediction_entry_complete %}is-hidden{% endif %}">
+                                        &#10003; Saved
+                                    </span>
+                                </div>
+                            {% else %}
+                                <button
+                                    class="matches-v2-collapse-toggle"
+                                    type="button"
+                                    aria-expanded="false"
+                                    aria-label="Expand {{ match.display_name_plain }}"
+                                >
+                                    <span aria-hidden="true">v</span>
+                                    <span class="matches-v2-collapse-text">Expand</span>
+                                </button>
+                            {% endif %}
                         </div>
 
                         <div class="matches-v2-card-top">
@@ -364,98 +378,7 @@
                             </div>
                         </div>
 
-                        {% if match.voting_is_open and user_memberships %}
-                            <div class="matches-v2-prediction-panel">
-                                <div class="matches-v2-panel-heading">
-                                    <div>
-                                        {% if match.is_knockout %}
-                                            <p class="eyebrow matches-v2-question-line">
-                                                <span>{{ match.prediction_question }}</span>
-
-                                                <span class="matches-v2-selection-status current-prediction-text">
-                                                    {% if match.user_prediction %}
-                                                        {% if match.user_prediction.prediction == 'home' %}
-                                                            You predicted: {{ match.home_team }} to qualify for the next round!
-                                                        {% elif match.user_prediction.prediction == 'away' %}
-                                                            You predicted: {{ match.away_team }} to qualify for the next round!
-                                                        {% else %}
-                                                            Selection pending
-                                                        {% endif %}
-                                                    {% else %}
-                                                        Selection pending
-                                                    {% endif %}
-                                                </span>
-                                            </p>
-                                        {% else %}
-                                            <p class="eyebrow">{{ match.prediction_question }}</p>
-
-                                            <h3>
-                                                {% if match.user_prediction %}
-                                                    Current pick:
-                                                    <span class="current-prediction-text">{{ match.user_prediction.pick_display }}</span>
-                                                {% else %}
-                                                    Current pick:
-                                                    <span class="current-prediction-text">Not selected yet</span>
-                                                {% endif %}
-                                            </h3>
-                                        {% endif %}
-                                    </div>
-
-                                </div>
-
-                                <form class="prediction-form matches-v2-prediction-options {% if match.is_knockout %}is-knockout{% endif %}" method="post" action="{% url 'submit_prediction' match.id %}">
-                                    {% csrf_token %}
-
-                                    <button
-                                        class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'home' %}selected{% endif %}"
-                                        type="submit"
-                                        name="prediction"
-                                        value="home"
-                                        {% if match.is_knockout %}data-status-text="You predicted: {{ match.home_team }} to qualify for the next round"{% endif %}
-                                    >
-                                        {% if match.home_team_flag_url %}
-                                            <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
-                                        {% endif %}
-                                        {% if match.is_knockout %}
-                                            {{ match.home_team }}
-                                        {% else %}
-                                            {{ match.home_team }} win
-                                        {% endif %}
-                                    </button>
-
-                                    {% if match.allows_draw_prediction %}
-                                        <button
-                                            class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'draw' %}selected{% endif %}"
-                                            type="submit"
-                                            name="prediction"
-                                            value="draw"
-                                        >
-                                            <span class="draw-icon">D</span>
-                                            Draw
-                                        </button>
-                                    {% endif %}
-
-                                    <button
-                                        class="prediction-option matches-v2-pick-button {% if match.user_prediction.prediction == 'away' %}selected{% endif %}"
-                                        type="submit"
-                                        name="prediction"
-                                        value="away"
-                                        {% if match.is_knockout %}data-status-text="You predicted: {{ match.away_team }} to qualify for the next round"{% endif %}
-                                    >
-                                        {% if match.away_team_flag_url %}
-                                            <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
-                                        {% endif %}
-                                        {% if match.is_knockout %}
-                                            {{ match.away_team }}
-                                        {% else %}
-                                            {{ match.away_team }} win
-                                        {% endif %}
-                                    </button>
-                                </form>
-
-                                <div class="prediction-inline-message" aria-live="polite"></div>
-                            </div>
-                        {% else %}
+                        {% if not match.voting_is_open or not user_memberships %}
                             <div class="matches-v2-locked-panel">
                                 <div class="matches-v2-locked-summary">
                                     <div>
@@ -470,6 +393,18 @@
                                                 <p>
                                                     Points awarded:
                                                     <strong>{{ match.user_prediction.points_awarded }}</strong>
+                                                </p>
+                                            {% endif %}
+
+                                            {% if match.supports_bonus_timing_prediction and match.user_bonus_timing_prediction %}
+                                                <p>
+                                                    Decision Timing:
+                                                    <strong>{{ match.user_bonus_timing_prediction.option_display }}</strong>
+                                                </p>
+
+                                                <p>
+                                                    Bonus points:
+                                                    <strong>{{ match.user_bonus_timing_prediction.points_awarded }}</strong>
                                                 </p>
                                             {% endif %}
                                         {% else %}
@@ -651,6 +586,165 @@
                             </div>
                         {% endif %}
                     </article>
+
+                    {% if match.voting_is_open and user_memberships %}
+                        <div
+                            class="prediction-wizard-modal"
+                            id="prediction-wizard-modal-{{ match.id }}"
+                            hidden
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="prediction-wizard-title-{{ match.id }}"
+                            data-prediction-modal="true"
+                        >
+                            <div class="prediction-wizard-backdrop" data-prediction-modal-close="prediction-wizard-modal-{{ match.id }}"></div>
+
+                            <div class="prediction-wizard-card">
+                                <button
+                                    class="prediction-wizard-close"
+                                    type="button"
+                                    data-prediction-modal-close="prediction-wizard-modal-{{ match.id }}"
+                                    aria-label="Close prediction wizard"
+                                >
+                                    &times;
+                                </button>
+
+                                <form
+                                    class="prediction-form matches-v2-modal-wizard"
+                                    method="post"
+                                    action="{% url 'submit_prediction' match.id %}"
+                                    data-prediction-wizard="true"
+                                    data-has-bonus="{% if match.supports_bonus_timing_prediction %}true{% else %}false{% endif %}"
+                                    data-is-knockout="{% if match.is_knockout %}true{% else %}false{% endif %}"
+                                    data-home-team="{{ match.home_team }}"
+                                    data-away-team="{{ match.away_team }}"
+                                    data-match-card-id="match-{{ match.id }}"
+                                    data-initial-complete="{% if match.prediction_entry_complete %}true{% else %}false{% endif %}"
+                                >
+                                    {% csrf_token %}
+
+                                    <input type="hidden" name="prediction" value="{{ match.user_prediction.prediction|default:'' }}">
+                                    {% if match.supports_bonus_timing_prediction %}
+                                        <input type="hidden" name="bonus_decision_timing" value="{{ match.user_bonus_timing_prediction.selected_option|default:'' }}">
+                                    {% endif %}
+
+                                    <div class="prediction-wizard-screen prediction-wizard-intro" data-wizard-step="intro">
+                                        <div class="prediction-wizard-content prediction-wizard-intro-content">
+                                            <div class="prediction-wizard-glyph" aria-hidden="true">✦</div>
+                                            <p class="prediction-wizard-kicker">{{ match.get_stage_display }}</p>
+                                            <h2 id="prediction-wizard-title-{{ match.id }}">
+                                                <span class="wizard-logo-word">
+                                                    <span class="wizard-logo-initial">P</span>REDICTION
+                                                </span>
+                                                <strong class="wizard-logo-word wizard-logo-word-dark">
+                                                    <span class="wizard-logo-initial">W</span>IZARD
+                                                </strong>
+                                            </h2>
+                                            <button type="button" class="button primary prediction-wizard-start" data-wizard-start>
+                                                Start
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="prediction-wizard-screen" data-wizard-step="prediction" hidden>
+                                        <p class="prediction-wizard-progress">
+                                            1 of {% if match.supports_bonus_timing_prediction %}2{% else %}1{% endif %}
+                                        </p>
+
+                                        <div class="prediction-wizard-content">
+                                            <h3>
+                                                {% if match.is_knockout %}
+                                                    Which team will progress to the next round?
+                                                {% else %}
+                                                    Who will win?
+                                                {% endif %}
+                                            </h3>
+
+                                            <div class="matches-v2-prediction-options {% if match.is_knockout %}is-knockout{% endif %}">
+                                                <button class="prediction-option matches-v2-pick-button" type="button" value="home" data-wizard-choice="prediction" data-value="home">
+                                                    {% if match.home_team_flag_url %}
+                                                        <img class="team-flag-img" src="{{ match.home_team_flag_url }}" alt="{{ match.home_team }} flag" loading="lazy">
+                                                    {% endif %}
+                                                    {{ match.home_team }}
+                                                </button>
+
+                                                {% if match.allows_draw_prediction %}
+                                                    <button class="prediction-option matches-v2-pick-button" type="button" value="draw" data-wizard-choice="prediction" data-value="draw">
+                                                        <span class="draw-icon">D</span>
+                                                        Draw
+                                                    </button>
+                                                {% endif %}
+
+                                                <button class="prediction-option matches-v2-pick-button" type="button" value="away" data-wizard-choice="prediction" data-value="away">
+                                                    {% if match.away_team_flag_url %}
+                                                        <img class="team-flag-img" src="{{ match.away_team_flag_url }}" alt="{{ match.away_team }} flag" loading="lazy">
+                                                    {% endif %}
+                                                    {{ match.away_team }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {% if match.supports_bonus_timing_prediction %}
+                                        <div class="prediction-wizard-screen" data-wizard-step="timing" hidden>
+                                            <p class="prediction-wizard-progress">2 of 2</p>
+
+                                            <div class="prediction-wizard-content">
+                                                <h3>Will the match be decided in 90 minutes or go beyond 90?</h3>
+
+                                                <div class="matches-v2-prediction-options is-knockout">
+                                                    <button class="prediction-option matches-v2-pick-button" type="button" value="decided_90" data-wizard-choice="bonus_decision_timing" data-value="decided_90">
+                                                        Decided in 90 minutes
+                                                    </button>
+
+                                                    <button class="prediction-option matches-v2-pick-button" type="button" value="beyond_90" data-wizard-choice="bonus_decision_timing" data-value="beyond_90">
+                                                        Beyond 90 minutes
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+
+                                    <div class="prediction-wizard-screen prediction-wizard-review" data-wizard-step="review" hidden>
+                                        <p class="prediction-wizard-progress">Review</p>
+
+                                        <div class="prediction-wizard-content">
+                                            <p class="prediction-wizard-kicker">Review</p>
+                                            <h3>Review Your Picks</h3>
+
+                                            <div class="matches-v2-wizard-review-grid">
+                                                <div class="matches-v2-wizard-review-item">
+                                                    <span>{% if match.is_knockout %}Qualifier{% else %}Match Result{% endif %}</span>
+                                                    <strong data-review-prediction>Selection pending</strong>
+
+                                                    <button type="button" class="button secondary compact" data-wizard-edit="prediction">
+                                                        {% if match.is_knockout %}Edit Qualifier{% else %}Edit Match Result{% endif %}
+                                                    </button>
+                                                </div>
+
+                                                {% if match.supports_bonus_timing_prediction %}
+                                                    <div class="matches-v2-wizard-review-item">
+                                                        <span>Decision Timing</span>
+                                                        <strong data-review-bonus>Selection pending</strong>
+
+                                                        <button type="button" class="button secondary compact" data-wizard-edit="timing">
+                                                            Edit Decision Timing
+                                                        </button>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+
+                                            <button type="submit" class="button primary compact matches-v2-wizard-save">
+                                                Save Picks
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="prediction-inline-message" aria-live="polite"></div>
+                                </form>
+                            </div>
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
 
@@ -877,6 +971,311 @@
             });
         });
 
+        const predictionModals = document.querySelectorAll("[data-prediction-modal='true']");
+        const predictionWizardForms = document.querySelectorAll("[data-prediction-wizard='true']");
+
+        function openPredictionModal(modalId) {
+            const modal = document.getElementById(modalId);
+
+            if (!modal) {
+                return;
+            }
+
+            modal.hidden = false;
+            document.body.classList.add("modal-open");
+
+            const form = modal.querySelector("[data-prediction-wizard='true']");
+
+            if (form) {
+                initialiseWizardForm(form, true);
+            }
+
+            const closeButton = modal.querySelector(".prediction-wizard-close");
+
+            if (closeButton) {
+                closeButton.focus();
+            }
+        }
+
+        function closePredictionModal(modalId) {
+            const modal = document.getElementById(modalId);
+
+            if (!modal) {
+                return;
+            }
+
+            modal.hidden = true;
+            document.body.classList.remove("modal-open");
+        }
+
+        matchCards.forEach(function (card) {
+            const modalId = card.dataset.predictionModalTarget;
+
+            if (!modalId) {
+                return;
+            }
+
+            card.addEventListener("click", function (event) {
+                if (event.target.closest("button, a, input, select, textarea")) {
+                    return;
+                }
+
+                openPredictionModal(modalId);
+            });
+
+            card.addEventListener("keydown", function (event) {
+                if (event.key !== "Enter" && event.key !== " ") {
+                    return;
+                }
+
+                event.preventDefault();
+                openPredictionModal(modalId);
+            });
+        });
+
+        document.querySelectorAll("[data-prediction-modal-close]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                closePredictionModal(button.dataset.predictionModalClose);
+            });
+        });
+
+        function getWizardPredictionLabel(form, value) {
+            const isKnockout = form.dataset.isKnockout === "true";
+
+            if (value === "home") {
+                if (isKnockout) {
+                    return (form.dataset.homeTeam || "Home team") + " to qualify";
+                }
+
+                return (form.dataset.homeTeam || "Home team") + " win";
+            }
+
+            if (value === "away") {
+                if (isKnockout) {
+                    return (form.dataset.awayTeam || "Away team") + " to qualify";
+                }
+
+                return (form.dataset.awayTeam || "Away team") + " win";
+            }
+
+            if (value === "draw") {
+                return "Draw";
+            }
+
+            return "Selection pending";
+        }
+
+        function getWizardBonusLabel(value) {
+            if (value === "decided_90") {
+                return "Decided in 90 minutes";
+            }
+
+            if (value === "beyond_90") {
+                return "Beyond 90 minutes";
+            }
+
+            return "Selection pending";
+        }
+
+        function updateWizardReview(form) {
+            const predictionValue = form.querySelector("input[name='prediction']").value;
+            const bonusInput = form.querySelector("input[name='bonus_decision_timing']");
+            const bonusValue = bonusInput ? bonusInput.value : "";
+            const predictionReview = form.querySelector("[data-review-prediction]");
+            const bonusReview = form.querySelector("[data-review-bonus]");
+
+            if (predictionReview) {
+                predictionReview.textContent = getWizardPredictionLabel(form, predictionValue);
+            }
+
+            if (bonusReview) {
+                bonusReview.textContent = getWizardBonusLabel(bonusValue);
+            }
+
+            form.querySelectorAll("[data-wizard-choice]").forEach(function (button) {
+                const input = form.querySelector("input[name='" + button.dataset.wizardChoice + "']");
+                button.classList.toggle("selected", input && input.value === button.dataset.value);
+            });
+        }
+
+        const wizardTransitionMs = 210;
+
+        function showWizardStep(form, stepName) {
+            const previousStep = form.querySelector("[data-wizard-step]:not([hidden])");
+            const nextStep = form.querySelector("[data-wizard-step='" + stepName + "']");
+
+            if (!nextStep) {
+                return;
+            }
+
+            if (form.wizardTransitionTimer) {
+                window.clearTimeout(form.wizardTransitionTimer);
+            }
+
+            form.querySelectorAll("[data-wizard-step]").forEach(function (step) {
+                if (step !== previousStep && step !== nextStep) {
+                    step.hidden = true;
+                    step.classList.remove("is-active", "is-entering", "is-leaving");
+                }
+            });
+
+            if (!previousStep || previousStep === nextStep) {
+                nextStep.hidden = false;
+                nextStep.classList.remove("is-entering", "is-leaving");
+                nextStep.classList.add("is-active");
+                form.dataset.currentStep = stepName;
+                updateWizardReview(form);
+                return;
+            }
+
+            previousStep.classList.remove("is-active", "is-entering");
+            previousStep.classList.add("is-leaving");
+
+            const finishTransition = function () {
+                previousStep.hidden = true;
+                previousStep.classList.remove("is-leaving");
+
+                nextStep.hidden = false;
+                nextStep.classList.remove("is-active", "is-leaving", "is-entering");
+
+                // Force the browser to commit the hidden -> entering state before animating in.
+                nextStep.offsetHeight;
+
+                nextStep.classList.add("is-entering");
+
+                window.requestAnimationFrame(function () {
+                    window.requestAnimationFrame(function () {
+                        nextStep.classList.add("is-active");
+                        nextStep.classList.remove("is-entering");
+                    });
+                });
+
+                form.dataset.currentStep = stepName;
+                updateWizardReview(form);
+            };
+
+            const onTransitionEnd = function (event) {
+                if (event.target !== previousStep || event.propertyName !== "opacity") {
+                    return;
+                }
+
+                previousStep.removeEventListener("transitionend", onTransitionEnd);
+
+                if (form.wizardTransitionTimer) {
+                    window.clearTimeout(form.wizardTransitionTimer);
+                }
+
+                finishTransition();
+            };
+
+            previousStep.addEventListener("transitionend", onTransitionEnd);
+            form.wizardTransitionTimer = window.setTimeout(function () {
+                previousStep.removeEventListener("transitionend", onTransitionEnd);
+                finishTransition();
+            }, wizardTransitionMs + 80);
+        }
+
+        function showWizardStepImmediately(form, stepName) {
+            const nextStep = form.querySelector("[data-wizard-step='" + stepName + "']");
+
+            if (!nextStep) {
+                return;
+            }
+
+            if (form.wizardTransitionTimer) {
+                window.clearTimeout(form.wizardTransitionTimer);
+            }
+
+            form.querySelectorAll("[data-wizard-step]").forEach(function (step) {
+                const isTargetStep = step === nextStep;
+                step.hidden = !isTargetStep;
+                step.classList.remove("is-entering", "is-leaving");
+                step.classList.toggle("is-active", isTargetStep);
+            });
+
+            form.dataset.currentStep = stepName;
+            updateWizardReview(form);
+        }
+
+        function getWizardInitialStep(form) {
+            const predictionInput = form.querySelector("input[name='prediction']");
+            const bonusInput = form.querySelector("input[name='bonus_decision_timing']");
+            const hasBonus = form.dataset.hasBonus === "true";
+            const hasPrediction = Boolean(predictionInput && predictionInput.value);
+            const hasBonusAnswer = Boolean(bonusInput && bonusInput.value);
+            const hasSavedCompletePicks = form.dataset.initialComplete === "true";
+
+            if (hasSavedCompletePicks) {
+                return "review";
+            }
+
+            if (!hasPrediction) {
+                return form.dataset.dirty === "true" ? "prediction" : "intro";
+            }
+
+            if (hasBonus && !hasBonusAnswer) {
+                return "timing";
+            }
+
+            return "review";
+        }
+
+        function initialiseWizardForm(form, shouldRecomputeStep) {
+            const nextStep = getWizardInitialStep(form);
+
+            if (!form.dataset.returnToReview) {
+                form.dataset.returnToReview = "false";
+            }
+
+            if (shouldRecomputeStep || !form.dataset.currentStep) {
+                showWizardStepImmediately(form, nextStep);
+            }
+        }
+
+        predictionWizardForms.forEach(function (form) {
+            initialiseWizardForm(form);
+
+            const startButton = form.querySelector("[data-wizard-start]");
+
+            if (startButton) {
+                startButton.addEventListener("click", function () {
+                    form.dataset.hasStarted = "true";
+                    showWizardStep(form, "prediction");
+                });
+            }
+
+            form.querySelectorAll("[data-wizard-choice]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const input = form.querySelector("input[name='" + button.dataset.wizardChoice + "']");
+                    const hasBonus = form.dataset.hasBonus === "true";
+
+                    if (!input) {
+                        return;
+                    }
+
+                    input.value = button.dataset.value;
+                    form.dataset.dirty = "true";
+                    updateWizardReview(form);
+
+                    if (form.dataset.returnToReview === "true") {
+                        form.dataset.returnToReview = "false";
+                        showWizardStep(form, "review");
+                    } else if (button.dataset.wizardChoice === "prediction") {
+                        showWizardStep(form, hasBonus ? "timing" : "review");
+                    } else {
+                        showWizardStep(form, "review");
+                    }
+                });
+            });
+
+            form.querySelectorAll("[data-wizard-edit]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    form.dataset.returnToReview = "true";
+                    showWizardStep(form, button.dataset.wizardEdit);
+                });
+            });
+        });
+
         const predictionForms = document.querySelectorAll(".prediction-form");
 
         predictionForms.forEach(function (form) {
@@ -884,14 +1283,32 @@
                 event.preventDefault();
 
                 const clickedButton = event.submitter;
+                const isPredictionWizard = form.dataset.predictionWizard === "true";
                 const panel = form.closest(".matches-v2-prediction-panel");
                 const matchCard = form.closest("[data-match-card='true']");
-                const messageBox = panel.querySelector(".prediction-inline-message");
-                const currentPredictionText = panel.querySelector(".current-prediction-text");
-                const optionButtons = form.querySelectorAll(".prediction-option");
+                const modal = form.closest("[data-prediction-modal='true']");
+                const linkedMatchCard = matchCard || document.getElementById(form.dataset.matchCardId || "");
+                const messageBox = form.querySelector(".prediction-inline-message") || (panel ? panel.querySelector(".prediction-inline-message") : null);
+                const currentPredictionText = panel ? panel.querySelector(".current-prediction-text") : null;
+                const optionButtons = form.querySelectorAll(".prediction-option, .matches-v2-wizard-save");
 
-                if (!clickedButton) {
+                if (!clickedButton && !isPredictionWizard) {
                     return;
+                }
+
+                if (isPredictionWizard) {
+                    const predictionValue = form.querySelector("input[name='prediction']").value;
+                    const bonusInput = form.querySelector("input[name='bonus_decision_timing']");
+                    const bonusValue = bonusInput ? bonusInput.value : "";
+                    const hasBonus = form.dataset.hasBonus === "true";
+
+                    if (!predictionValue || (hasBonus && !bonusValue)) {
+                        if (messageBox) {
+                            messageBox.textContent = "Choose all picks before saving.";
+                            messageBox.classList.add("error");
+                        }
+                        return;
+                    }
                 }
 
                 optionButtons.forEach(function (button) {
@@ -899,11 +1316,16 @@
                     button.classList.add("is-saving");
                 });
 
-                messageBox.className = "prediction-inline-message";
-                messageBox.textContent = "";
+                if (messageBox) {
+                    messageBox.className = "prediction-inline-message";
+                    messageBox.textContent = "";
+                }
 
                 const formData = new FormData(form);
-                formData.set("prediction", clickedButton.value);
+
+                if (!isPredictionWizard) {
+                    formData.set("prediction", clickedButton.value);
+                }
 
                 try {
                     const response = await fetch(form.action, {
@@ -923,17 +1345,55 @@
                     optionButtons.forEach(function (button) {
                         button.classList.remove("selected");
 
-                        if (button.value === data.prediction) {
+                        if ((button.value || button.dataset.value) === data.prediction) {
                             button.classList.add("selected");
                         }
                     });
 
-                    currentPredictionText.textContent = clickedButton.dataset.statusText || data.prediction_display;
+                    if (currentPredictionText) {
+                        currentPredictionText.textContent = clickedButton.dataset.statusText || data.prediction_display;
+                    }
 
-                    showPredictionToast(matchCard, data.prediction_display);
+                    if (isPredictionWizard) {
+                        updateWizardReview(form);
+                        showWizardStep(form, "review");
+                        form.dataset.dirty = "false";
+                        form.dataset.initialComplete = "true";
+
+                        if (messageBox) {
+                            messageBox.textContent = "Your picks have been saved.";
+                            messageBox.classList.add("success");
+                        }
+
+                        if (linkedMatchCard) {
+                            linkedMatchCard.dataset.predictionComplete = "true";
+                            linkedMatchCard.dataset.pending = "false";
+
+                            const predictPill = linkedMatchCard.querySelector(".js-predict-pill");
+                            const savedPill = linkedMatchCard.querySelector(".js-saved-pill");
+
+                            if (predictPill) {
+                                predictPill.classList.add("is-hidden");
+                            }
+
+                            if (savedPill) {
+                                savedPill.classList.remove("is-hidden");
+                            }
+                        }
+
+                        if (modal) {
+                            window.setTimeout(function () {
+                                closePredictionModal(modal.id);
+                            }, 450);
+                        }
+                    }
+
+                    showPredictionToast(linkedMatchCard, data.prediction_display);
                 } catch (error) {
-                    messageBox.textContent = error.message;
-                    messageBox.classList.add("error");
+                    if (messageBox) {
+                        messageBox.textContent = error.message;
+                        messageBox.classList.add("error");
+                    }
                 } finally {
                     optionButtons.forEach(function (button) {
                         button.disabled = false;
@@ -988,6 +1448,13 @@
 
         document.addEventListener("keydown", function (event) {
             if (event.key !== "Escape") {
+                return;
+            }
+
+            const openPredictionModalElement = document.querySelector(".prediction-wizard-modal:not([hidden])");
+
+            if (openPredictionModalElement) {
+                closePredictionModal(openPredictionModalElement.id);
                 return;
             }
 

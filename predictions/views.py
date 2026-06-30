@@ -21,7 +21,16 @@ from .data.fifa_rankings_snapshot import (
     is_placeholder_team_name,
 )
 from .forms import JoinLeagueForm, RegisterForm
-from .models import CompetitionGroup, GroupMember, Match, Prediction, get_team_flag
+from .models import (
+    BONUS_DECISION_TIMING_CHOICES,
+    BONUS_QUESTION_DECISION_TIMING,
+    BonusPrediction,
+    CompetitionGroup,
+    GroupMember,
+    Match,
+    Prediction,
+    get_team_flag,
+)
 
 
 User = get_user_model()
@@ -1204,6 +1213,34 @@ def get_global_predictions_for_user(user, matches_list=None):
     }
 
 
+def get_bonus_timing_predictions_for_user(user, matches_list=None):
+    bonus_predictions = BonusPrediction.objects.filter(
+        user=user,
+        question_key=BONUS_QUESTION_DECISION_TIMING,
+    ).select_related("match")
+
+    if matches_list is not None:
+        bonus_predictions = bonus_predictions.filter(match__in=matches_list)
+
+    return {
+        bonus_prediction.match_id: bonus_prediction
+        for bonus_prediction in bonus_predictions.order_by("match_id")
+    }
+
+
+def get_bonus_points_for_user(user, match_ids):
+    if not match_ids:
+        return 0
+
+    return sum(
+        BonusPrediction.objects.filter(
+            user=user,
+            match_id__in=match_ids,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+        ).values_list("points_awarded", flat=True)
+    )
+
+
 def build_tie_summary(tied_rows, value, value_label):
     if not tied_rows:
         return None
@@ -1271,6 +1308,8 @@ def build_leaderboard_rows(
 
         if incorrect_predictions < 0:
             incorrect_predictions = 0
+
+        total_points += get_bonus_points_for_user(user, scoring_match_ids)
 
         if scored_predictions > 0:
             accuracy = round((correct_predictions / scored_predictions) * 100, 1)
@@ -2174,12 +2213,26 @@ def matches(request):
         request.user,
         matches_list,
     )
+    bonus_predictions_by_match_id = get_bonus_timing_predictions_for_user(
+        request.user,
+        matches_list,
+    )
 
     open_matches_count = 0
     closing_soon_matches = []
 
     for match in matches_list:
         match.user_prediction = predictions_by_match_id.get(match.id)
+        match.user_bonus_timing_prediction = bonus_predictions_by_match_id.get(
+            match.id
+        )
+        match.prediction_entry_complete = bool(
+            match.user_prediction
+            and (
+                not match.supports_bonus_timing_prediction
+                or match.user_bonus_timing_prediction
+            )
+        )
 
         voting_is_open, voting_message = get_prediction_availability(match)
 
@@ -2499,6 +2552,7 @@ def submit_prediction(request, match_id):
         return redirect(match_anchor_url)
 
     prediction_choice = request.POST.get("prediction")
+    bonus_timing_choice = request.POST.get("bonus_decision_timing")
 
     valid_choices = [
         Prediction.PREDICTION_HOME,
@@ -2528,6 +2582,29 @@ def submit_prediction(request, match_id):
         messages.error(request, error_message)
         return redirect(match_anchor_url)
 
+    valid_bonus_timing_options = {
+        option for option, _label in BONUS_DECISION_TIMING_CHOICES
+    }
+
+    if (
+        match.supports_bonus_timing_prediction
+        and bonus_timing_choice
+        and bonus_timing_choice not in valid_bonus_timing_options
+    ):
+        error_message = "Invalid bonus prediction option."
+
+        if is_ajax:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": error_message,
+                },
+                status=400,
+            )
+
+        messages.error(request, error_message)
+        return redirect(match_anchor_url)
+
     prediction, created = Prediction.objects.update_or_create(
         user=request.user,
         match=match,
@@ -2535,6 +2612,18 @@ def submit_prediction(request, match_id):
             "prediction": prediction_choice,
         },
     )
+
+    bonus_prediction = None
+
+    if match.supports_bonus_timing_prediction and bonus_timing_choice:
+        bonus_prediction, _bonus_created = BonusPrediction.objects.update_or_create(
+            user=request.user,
+            match=match,
+            question_key=BONUS_QUESTION_DECISION_TIMING,
+            defaults={
+                "selected_option": bonus_timing_choice,
+            },
+        )
 
     if created:
         success_message = f"Prediction saved for {match.display_name_with_flags}."
@@ -2548,6 +2637,12 @@ def submit_prediction(request, match_id):
                 "message": success_message,
                 "prediction": prediction.prediction,
                 "prediction_display": prediction.pick_display,
+                "bonus_prediction": (
+                    bonus_prediction.selected_option if bonus_prediction else ""
+                ),
+                "bonus_prediction_display": (
+                    bonus_prediction.option_display if bonus_prediction else ""
+                ),
                 "match_id": match.id,
             }
         )
