@@ -9,6 +9,9 @@ from django.utils import timezone
 
 from .admin import MatchAdmin
 from .data.fifa_rankings_snapshot import get_team_ranking, is_placeholder_team_name
+from .management.commands.import_openfootball_worldcup import (
+    Command as ImportOpenFootballWorldCupCommand,
+)
 from .models import CompetitionGroup, GroupMember, Match, Prediction
 from .views import build_pick_style, build_user_vs_crowd
 
@@ -99,6 +102,29 @@ class MatchPickUpdateThreeTests(TestCase):
 
     def login_as_staff(self):
         self.client.login(username="staffadmin", password="Testpass123!")
+
+    def openfootball_source_match(
+        self,
+        *,
+        team1="Germany",
+        team2="Paraguay",
+        round_name="Round of 32",
+        group=None,
+        score=None,
+    ):
+        source_match = {
+            "round": round_name,
+            "date": "2026-06-30",
+            "time": "20:00 UTC-5",
+            "team1": team1,
+            "team2": team2,
+            "score": score or {"ft": [1, 1]},
+        }
+
+        if group:
+            source_match["group"] = group
+
+        return source_match
 
     def test_user_can_join_second_league_after_registration(self):
         self.login_as_aryan()
@@ -845,6 +871,141 @@ class MatchPickUpdateThreeTests(TestCase):
         )
 
         self.assertEqual(match.get_scoring_result(), Match.RESULT_HOME)
+        self.assertEqual(prediction.points_awarded, 3)
+
+    def test_openfootball_import_sets_knockout_qualified_team_from_decisive_score(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(score={"ft": [2, 1]})
+
+        parsed_match = command.parse_source_match(source_match, 1)
+
+        self.assertEqual(parsed_match["stage"], Match.STAGE_ROUND_OF_32)
+        self.assertEqual(parsed_match["result"], Match.RESULT_HOME)
+        self.assertEqual(parsed_match["qualified_team"], Match.RESULT_HOME)
+
+    def test_openfootball_import_sets_knockout_qualified_team_from_penalties(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Netherlands",
+            team2="Morocco",
+            score={
+                "ft": [1, 1],
+                "p": [3, 4],
+            },
+        )
+
+        parsed_match = command.parse_source_match(source_match, 1)
+
+        self.assertEqual(parsed_match["result"], Match.RESULT_DRAW)
+        self.assertEqual(parsed_match["qualified_team"], Match.RESULT_AWAY)
+
+    def test_openfootball_import_preserves_manual_qualified_team_without_winner_data(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(score={"ft": [1, 1]})
+        match = self.create_match(
+            home_team="Germany",
+            away_team="Paraguay",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_32,
+            qualified_team=Match.RESULT_HOME,
+        )
+        match.external_source = "openfootball"
+        match.external_match_id = command.build_external_match_id(source_match, 1)
+        match.save()
+
+        with patch.object(command, "fetch_json", return_value={"matches": [source_match]}):
+            command.handle(url="test://openfootball", limit=None, dry_run=False)
+
+        match.refresh_from_db()
+
+        self.assertEqual(match.qualified_team, Match.RESULT_HOME)
+        self.assertEqual(match.get_scoring_result(), Match.RESULT_HOME)
+
+    def test_openfootball_import_leaves_level_knockout_awaiting_without_winner_data(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(score={"ft": [1, 1]})
+
+        parsed_match = command.parse_source_match(source_match, 1)
+        match = Match.objects.create(**parsed_match)
+
+        self.assertEqual(match.status, Match.STATUS_FINISHED)
+        self.assertEqual(match.result, Match.RESULT_DRAW)
+        self.assertIsNone(match.qualified_team)
+        self.assertIsNone(match.get_scoring_result())
+        self.assertEqual(match.scoring_result_display, "Awaiting result")
+
+    def test_openfootball_import_recalculates_points_for_penalty_decided_knockout(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="Netherlands",
+            team2="Morocco",
+            score={
+                "ft": [1, 1],
+                "p": [3, 4],
+            },
+        )
+        match = self.create_match(
+            home_team="Netherlands",
+            away_team="Morocco",
+            kickoff_delta_hours=-2,
+            status=Match.STATUS_FINISHED,
+            home_score=1,
+            away_score=1,
+            stage=Match.STAGE_ROUND_OF_32,
+        )
+        match.external_source = "openfootball"
+        match.external_match_id = command.build_external_match_id(source_match, 1)
+        match.save()
+        correct_prediction = Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+        incorrect_prediction = Prediction.objects.create(
+            user=self.friend,
+            match=match,
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.assertEqual(correct_prediction.points_awarded, 0)
+
+        with patch.object(command, "fetch_json", return_value={"matches": [source_match]}):
+            command.handle(url="test://openfootball", limit=None, dry_run=False)
+
+        match.refresh_from_db()
+        correct_prediction.refresh_from_db()
+        incorrect_prediction.refresh_from_db()
+
+        self.assertEqual(match.qualified_team, Match.RESULT_AWAY)
+        self.assertEqual(match.get_scoring_result(), Match.RESULT_AWAY)
+        self.assertEqual(correct_prediction.points_awarded, 3)
+        self.assertEqual(incorrect_prediction.points_awarded, 0)
+
+    def test_openfootball_import_preserves_group_stage_draw_result(self):
+        command = ImportOpenFootballWorldCupCommand()
+        source_match = self.openfootball_source_match(
+            team1="USA",
+            team2="Wales",
+            round_name="Matchday 2",
+            group="Group B",
+            score={"ft": [1, 1]},
+        )
+
+        parsed_match = command.parse_source_match(source_match, 1)
+        match = Match.objects.create(**parsed_match)
+        prediction = Prediction.objects.create(
+            user=self.aryan,
+            match=match,
+            prediction=Prediction.PREDICTION_DRAW,
+        )
+
+        self.assertEqual(match.stage, Match.STAGE_GROUP)
+        self.assertEqual(match.result, Match.RESULT_DRAW)
+        self.assertIsNone(match.qualified_team)
+        self.assertEqual(match.get_scoring_result(), Match.RESULT_DRAW)
         self.assertEqual(prediction.points_awarded, 3)
 
     def test_finished_my_picks_show_result_row_highlighting(self):

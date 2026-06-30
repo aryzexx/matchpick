@@ -185,18 +185,46 @@ class Command(BaseCommand):
             calculated_result = temporary_match.calculate_result_from_score()
             parsed_match["result"] = calculated_result
 
-            if (
-                temporary_match.is_knockout
-                and calculated_result in {Match.RESULT_HOME, Match.RESULT_AWAY}
-            ):
-                parsed_match["qualified_team"] = calculated_result
-            else:
-                parsed_match["qualified_team"] = None
+            parsed_match["qualified_team"] = self.get_qualified_team(
+                temporary_match=temporary_match,
+                score_data=score_data,
+            )
         else:
             parsed_match["result"] = None
             parsed_match["qualified_team"] = None
 
         return parsed_match
+
+    def get_qualified_team(self, temporary_match, score_data):
+        if not temporary_match.is_knockout:
+            return None
+
+        score_result = temporary_match.calculate_result_from_score()
+
+        if score_result in {Match.RESULT_HOME, Match.RESULT_AWAY}:
+            return score_result
+
+        penalty_score = score_data.get("p")
+
+        if (
+            isinstance(penalty_score, list)
+            and len(penalty_score) == 2
+            and penalty_score[0] is not None
+            and penalty_score[1] is not None
+        ):
+            try:
+                home_penalties = int(penalty_score[0])
+                away_penalties = int(penalty_score[1])
+            except (TypeError, ValueError):
+                return None
+
+            if home_penalties > away_penalties:
+                return Match.RESULT_HOME
+
+            if away_penalties > home_penalties:
+                return Match.RESULT_AWAY
+
+        return None
 
     def parse_kickoff_time(self, match_date, match_time):
         """
