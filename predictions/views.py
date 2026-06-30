@@ -1461,6 +1461,40 @@ def build_leaderboard_rows(
     }
 
 
+def row_is_eligible_for_global_accuracy(row):
+    completed_picks = row["correct_predictions"] + row["incorrect_predictions"]
+    missed_picks = row["missed_finished_matches"]
+
+    return completed_picks > 0 and completed_picks >= missed_picks
+
+
+def build_global_accuracy_summary(leaderboard_rows):
+    eligible_rows = [
+        row for row in leaderboard_rows if row_is_eligible_for_global_accuracy(row)
+    ]
+
+    if not eligible_rows:
+        return None, None
+
+    best_accuracy_value = max(row["accuracy"] for row in eligible_rows)
+    most_accurate_rows = [
+        row for row in eligible_rows if row["accuracy"] == best_accuracy_value
+    ]
+
+    most_accurate_rows.sort(
+        key=lambda row: (
+            -row["correct_predictions"],
+            row["username"].lower(),
+        )
+    )
+
+    return most_accurate_rows[0], build_tie_summary(
+        tied_rows=most_accurate_rows,
+        value=f"{best_accuracy_value}%",
+        value_label="accuracy",
+    )
+
+
 def get_safe_redirect_url(request, fallback_url_name="matches"):
     redirect_target = request.POST.get("next") or request.GET.get("next")
 
@@ -2626,12 +2660,20 @@ def global_leaderboard(request):
         users=users,
         current_user=request.user,
     )
+    most_accurate, most_accurate_summary = build_global_accuracy_summary(
+        leaderboard_context["leaderboard_rows"]
+    )
+    leaderboard_context["most_accurate"] = most_accurate
+    leaderboard_context["most_accurate_summary"] = most_accurate_summary
 
     user_memberships = get_user_memberships(request.user)
 
     context = {
         "user_memberships": user_memberships,
         "primary_membership": user_memberships.first(),
+        "global_accuracy_eligibility_note": (
+            "Only players with at least as many completed picks as missed picks are eligible."
+        ),
         **leaderboard_context,
     }
 

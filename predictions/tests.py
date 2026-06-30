@@ -331,6 +331,133 @@ class MatchPickUpdateThreeTests(TestCase):
         self.assertContains(global_response, reverse("user_picks", args=[self.aryan.id]))
         self.assertContains(league_response, reverse("user_picks", args=[self.friend.id]))
 
+    def test_global_best_accuracy_excludes_players_with_more_missed_than_completed_picks(self):
+        matches = [
+            self.create_match(
+                home_team=f"Home {index}",
+                away_team=f"Away {index}",
+                kickoff_delta_hours=-index - 1,
+                status=Match.STATUS_FINISHED,
+                home_score=1,
+                away_score=0,
+            )
+            for index in range(3)
+        ]
+        Prediction.objects.create(
+            user=self.aryan,
+            match=matches[0],
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=matches[0],
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=matches[1],
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "aryan")
+        self.assertContains(response, "friend")
+        self.assertEqual(
+            response.context["most_accurate_summary"]["usernames"],
+            ["friend"],
+        )
+        self.assertContains(
+            response,
+            "Only players with at least as many completed picks as missed picks are eligible.",
+        )
+
+    def test_global_best_accuracy_shows_empty_state_when_no_players_are_eligible(self):
+        matches = [
+            self.create_match(
+                home_team=f"Home {index}",
+                away_team=f"Away {index}",
+                kickoff_delta_hours=-index - 1,
+                status=Match.STATUS_FINISHED,
+                home_score=1,
+                away_score=0,
+            )
+            for index in range(3)
+        ]
+        Prediction.objects.create(
+            user=self.aryan,
+            match=matches[0],
+            prediction=Prediction.PREDICTION_HOME,
+        )
+        Prediction.objects.create(
+            user=self.friend,
+            match=matches[0],
+            prediction=Prediction.PREDICTION_AWAY,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("leaderboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["most_accurate_summary"])
+        self.assertContains(response, "No eligible players yet")
+        self.assertContains(
+            response,
+            "Accuracy leaders will appear once players have enough completed picks.",
+        )
+        self.assertContains(response, "aryan")
+        self.assertContains(response, "friend")
+
+    def test_league_best_accuracy_behaviour_is_unchanged(self):
+        matches = [
+            self.create_match(
+                home_team=f"Home {index}",
+                away_team=f"Away {index}",
+                kickoff_delta_hours=-index - 1,
+                status=Match.STATUS_FINISHED,
+                home_score=1,
+                away_score=0,
+            )
+            for index in range(3)
+        ]
+        Prediction.objects.create(
+            user=self.aryan,
+            match=matches[0],
+            prediction=Prediction.PREDICTION_HOME,
+        )
+
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("league_detail", args=[self.family.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["most_accurate_summary"]["usernames"],
+            ["aryan"],
+        )
+        self.assertContains(response, "Best Accuracy")
+        self.assertContains(response, "100.0% accuracy")
+        self.assertNotContains(
+            response,
+            "Only players with at least as many completed picks as missed picks are eligible.",
+        )
+
+    def test_insights_page_does_not_use_global_accuracy_eligibility_rule(self):
+        self.login_as_aryan()
+
+        response = self.client.get(reverse("insights"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("global_accuracy_eligibility_note", response.context)
+        self.assertNotContains(
+            response,
+            "Only players with at least as many completed picks as missed picks are eligible.",
+        )
+
     def test_matches_page_shows_personal_prediction_progress_cards(self):
         self.create_match(kickoff_delta_hours=24)
 

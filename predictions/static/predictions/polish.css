@@ -3081,6 +3081,11 @@ button.button,
     line-height: 1.55;
 }
 
+.leaderboard-v2-insight-card .leaderboard-v2-card-note {
+    font-size: 12px;
+    font-weight: 800;
+}
+
 /* Ranking rules */
 
 .leaderboard-v2-rules-card {

@@ -80,12 +80,16 @@
                     {% endif %}
                 </p>
             {% else %}
-                <h3>No accuracy yet</h3>
+                <h3>No eligible players yet</h3>
 
                 <p>
-                    Accuracy appears after players have scored predictions.
+                    Accuracy leaders will appear once players have enough completed picks.
                 </p>
             {% endif %}
+
+            <p class="leaderboard-v2-card-note">
+                {{ global_accuracy_eligibility_note }}
+            </p>
         </article>
 
         <article class="leaderboard-v2-insight-card">
