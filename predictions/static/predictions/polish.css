@@ -3581,10 +3581,17 @@ button.button,
 }
 
 .leaderboard-v2-table-wrapper {
+    max-width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
     border-radius: var(--mp-radius-xl);
     border: 1px solid rgba(148, 163, 184, 0.22);
     background: white;
+}
+
+.mobile-table-scroll-hint {
+    display: none;
 }
 
 .leaderboard-v2-table {
@@ -4117,6 +4124,77 @@ button.button,
     background: var(--mp-green-100);
     color: #047857;
     font-weight: 950;
+}
+
+@media (max-width: 720px), ((max-height: 520px) and (hover: none) and (pointer: coarse)) {
+    .mobile-table-scroll-hint {
+        display: block;
+        margin: 0 0 10px;
+        color: var(--mp-slate-500);
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .leaderboard-v2-table-wrapper,
+    .table-scroll {
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .leaderboard-v2-table {
+        min-width: 900px;
+        font-size: 14px;
+    }
+
+    .leaderboard-v2-table.my-picks-table {
+        min-width: 900px;
+    }
+
+    .leaderboard-v2-table.compare-picks-table {
+        min-width: 800px;
+    }
+
+    .leaderboard-v2-table.insights-form-table {
+        min-width: 660px;
+    }
+
+    .leaderboard-v2-table thead th {
+        padding: 12px 14px;
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .leaderboard-v2-table tbody td {
+        padding: 14px;
+        line-height: 1.35;
+    }
+
+    .leaderboard-v2-table td:nth-child(3),
+    .leaderboard-v2-table td:nth-child(4),
+    .leaderboard-v2-table td:nth-child(5),
+    .leaderboard-v2-table td:nth-child(6) {
+        font-size: 18px;
+    }
+
+    .leaderboard-v2-table.my-picks-table td:nth-child(3),
+    .leaderboard-v2-table.my-picks-table td:nth-child(4),
+    .leaderboard-v2-table.my-picks-table td:nth-child(5),
+    .leaderboard-v2-table.my-picks-table td:nth-child(6),
+    .leaderboard-v2-table.compare-picks-table td:nth-child(1),
+    .leaderboard-v2-table.compare-picks-table td:nth-child(2),
+    .leaderboard-v2-table.compare-picks-table td:nth-child(3),
+    .leaderboard-v2-table.compare-picks-table td:nth-child(4),
+    .leaderboard-v2-table.insights-form-table td:nth-child(3),
+    .leaderboard-v2-table.insights-form-table td:nth-child(4) {
+        font-size: 14px;
+    }
+
+    .leaderboard-v2-table .rank-pill {
+        min-width: 42px;
+        height: 40px;
+        font-size: 14px;
+    }
 }
 
 /* Stage 23.3 responsive */
@@ -4825,6 +4903,8 @@ button.button,
 .table-scroll {
     max-width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
 }
 
 .insights-form-table {
