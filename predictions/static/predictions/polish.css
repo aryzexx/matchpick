@@ -6854,7 +6854,7 @@ body {
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), ((max-height: 520px) and (hover: none) and (pointer: coarse)) {
     .page-shell,
     .navbar,
     .site-footer {
@@ -6862,7 +6862,7 @@ body {
     }
 
     .site-header {
-        padding: 10px 0;
+        padding: 6px 0;
         transition: padding 0.18s ease, box-shadow 0.18s ease;
     }
 
@@ -6871,7 +6871,10 @@ body {
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: 10px 12px;
-        padding: 12px 14px;
+        padding: 8px 12px;
+        position: relative;
+        overflow: visible;
+        border-radius: 22px;
         transition: padding 0.18s ease, border-radius 0.18s ease;
     }
 
@@ -6880,9 +6883,9 @@ body {
     }
 
     .brand-mark {
-        width: 40px;
-        height: 40px;
-        border-radius: 14px;
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
         transition: width 0.18s ease, height 0.18s ease, border-radius 0.18s ease;
     }
 
@@ -6928,17 +6931,30 @@ body {
     }
 
     .nav-links {
-        width: 100%;
-        grid-column: 1 / -1;
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        left: 0;
+        z-index: 1001;
+        width: auto;
+        padding: 10px;
         gap: 7px;
-        max-height: 420px;
-        overflow: hidden;
-        opacity: 1;
-        transform: translateY(0);
+        max-height: min(420px, 62vh);
+        overflow: auto;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px) scale(0.98);
+        transform-origin: top center;
+        background:
+            linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(22, 78, 99, 0.95));
+        border: 1px solid rgba(226, 232, 240, 0.14);
+        border-radius: 20px;
+        box-shadow: 0 18px 42px rgba(2, 6, 23, 0.26);
         transition:
-            max-height 0.20s ease,
             opacity 0.16s ease,
-            transform 0.16s ease;
+            transform 0.16s ease,
+            visibility 0.16s ease;
     }
 
     .nav-links a,
@@ -6948,26 +6964,11 @@ body {
         font-size: 12px;
     }
 
-    .site-header.is-compact {
-        padding: 6px 0;
-    }
-
-    .site-header.is-compact .navbar {
-        padding: 8px 12px;
-        border-radius: 22px;
-    }
-
-    .site-header.is-compact .brand-mark {
-        width: 34px;
-        height: 34px;
-        border-radius: 12px;
-    }
-
-    .site-header.is-compact:not(.is-menu-open) .nav-links {
-        max-height: 0;
-        opacity: 0;
-        pointer-events: none;
-        transform: translateY(-6px);
+    .site-header.is-menu-open .nav-links {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
     }
 }
 
